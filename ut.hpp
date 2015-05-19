@@ -12,9 +12,9 @@
 
 #define UT_ASSERT(assertion) Where(__FILE__, __func__, __LINE__)
 
-#define UT_ASSERT_EQUALS(expected, actual)
+#define UT_ASSERT_EQUALS(expected, actual) Where(__FILE__, __func__, __LINE__)
 
-#define UT_ASERT_NOT_EQUALS(expected, actual)
+#define UT_ASERT_NOT_EQUALS(expected, actual) Where(__FILE__, __func__, __LINE__)
 
 
 namespace ut {
