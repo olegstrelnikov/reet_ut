@@ -9,6 +9,7 @@
 #define UT_HPP_
 
 #include <iostream>
+#include <deque>
 
 #define UT_ASSERT(assertion) Where(__FILE__, __func__, __LINE__)
 
@@ -39,7 +40,12 @@ namespace ut {
 	};
 	class Runner {
 	public:
-		static void run();
+		void run();
+	private:
+		std::deque<ReportLine> results_;
+		std::ostream& report_(std::ostream& os) {
+			return os;
+		}
 	};
 }
 
