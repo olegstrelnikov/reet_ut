@@ -12,22 +12,69 @@
 #include <deque>
 #include <memory>
 
-#define UT_ASSERT(assertion) Where(__FILE__, __func__, __LINE__)
+#define UT_ASSERT(assertion) Assert(#assertion, (assertion), __FILE__, __func__, __LINE__)
 
-#define UT_ASSERT_EQUALS(expected, actual) Where(__FILE__, __func__, __LINE__)
+#define UT_ASSERT_EQUALS(expected, actual) AssertEquals(#expected, #actual, (expected), (actual), __FILE__, __func__, __LINE__)
 
-#define UT_ASERT_NOT_EQUALS(expected, actual) Where(__FILE__, __func__, __LINE__)
+#define UT_ASERT_NOT_EQUALS(expected, actual) AssertNotEquals(#expected, #actual, (expected), (actual), __FILE__, __func__, __LINE__)
 
 #define UT_TRY try {
-#define UT_ASSERT_CAUGHT(exceptionClass) } catch(exceptionClass&) {\
-} catch {std::exception& e} {\
+#define UT_ASSERT_THROWN(exceptionClass) NothingThrown(#exceptionClass, typeid((exceptionClass)), __FILE__, __func__, __LINE__);\
+	} catch(exceptionClass& e) {\
+		ThrownExpected(#exceptionClass, e, __FILE__, __func__, __LINE__);\
+	} catch (...) {\
+		try {\
+			throw;\
+		} catch {std::exception& e} {\
+			ThrownUnexpectedStdException(#exceptionClass, typeid((exceptionClass)), e, __FILE__, __func__, __LINE__);\
+		} catch (...) {\
+			ThrownUnknown(#exceptionClass, typeid((exceptionClass)), __FILE__, __func__, __LINE__);\
+		}\
+	}
+#define UT_ASSERT_NOT_THROWN(exceptionClass) NothingThrown(#exceptionClass, typeid((exceptionClass)), __FILE__, __func__, __LINE__);\
+	} catch(exceptionClass& e) {\
+		ThrownExpected(#exceptionClass, e, __FILE__, __func__, __LINE__);\
+	} catch (...) {\
+		try {\
+			throw;\
+		} catch {std::exception& e} {\
+			ThrownUnexpectedStdException(#exceptionClass, typeid((exceptionClass)), e, __FILE__, __func__, __LINE__);\
+		} catch (...) {\
+			ThrownUnknown(#exceptionClass, typeid((exceptionClass)), __FILE__, __func__, __LINE__);\
+		}\
+	}
+#define UT_ASSERT_THROWN_NOT(exceptionClass) NothingThrown(#exceptionClass, typeid((exceptionClass)), __FILE__, __func__, __LINE__);\
+	} catch(exceptionClass& e) {\
+		ThrownExpected(#exceptionClass, e, __FILE__, __func__, __LINE__);\
+	} catch (...) {\
+		try {\
+			throw;\
+		} catch {std::exception& e} {\
+			ThrownUnexpectedStdException(#exceptionClass, typeid((exceptionClass)), e, __FILE__, __func__, __LINE__);\
+		} catch (...) {\
+			ThrownUnknown(#exceptionClass, typeid((exceptionClass)), __FILE__, __func__, __LINE__);\
+		}\
+	}
+#define UT_ASSERT_NOTHING_THROWN NothingThrown(__FILE__, __func__, __LINE__);\
+	} catch (...) {\
+		try {\
+			throw;\
+		} catch {std::exception& e} {\
+			ThrownUnexpectedStdException(e, __FILE__, __func__, __LINE__);\
+		} catch (...) {\
+			ThrownUnknown(__FILE__, __func__, __LINE__);\
+		}\
+	}
 
 
 namespace ut {
 
+	class Suite;
+
 	class Where {
 	public:
-		Where(const char* file, const char* function, size_t line) : file_(file), function_(function), line_(line) {};
+		Where(const char* file, const char* function, size_t line, const char* initialFunction, Suite const* psuite)
+			: file_(file), function_(function), line_(line), testName_(initialFunction), psuite_(psuite) {};
 		std::ostream& str(std::ostream& os) const {
 			return os << file_ << ":" << function_ << "():" << line_ << ": ";
 		}
@@ -35,13 +82,17 @@ namespace ut {
 		const char* file_;
 		const char* function_;
 		size_t line_;
+		const char* testName_;
+		Suite const* psuite_;
 	};
 
+	enum TestReult {UnexpectedException, };
 	class ReportLine {
 	public:
-		enum What {Ok, Fail, UnexpectedException, AnotherExceptionExpected};
+		enum What {Ok, Fail, AnotherExceptionExpected, NotThrown};
 	private:
-
+		What what_;
+		Where where_;
 	};
 
 	class ContextBase {
@@ -62,9 +113,13 @@ namespace ut {
 		}
 	protected:
 		Suite() : runner_(0) {}
+		void Assert(const char* expression, bool assertion, const char* file, const char* function, size_t line) {
+
+		}
 	private:
 		Runner* runner_;
-	};
+		const char* currentTest_;
+	}; //class Suite
 
 	class Runner {
 	public:
@@ -72,9 +127,10 @@ namespace ut {
 		~Runner() {
 			report_(std::cout);
 		}
-		void add(Suite& suite) {
-			suite.setRunner(this);
-			suites_.emplace_back(new Suite(suite));
+		template<typename SuiteT> void add() {
+			SuiteT psuite = new SuiteT;
+			psuite->setRunner(this);
+			suites_.emplace_back(psuite);
 		}
 		void run() {
 			for (auto& psuite : suites_) {
@@ -87,9 +143,8 @@ namespace ut {
 		std::ostream& report_(std::ostream& os) {
 			return os;
 		}
-	};
+	}; //class Runner
 
 } //namespace ut
-
 
 #endif /* UT_HPP_ */
