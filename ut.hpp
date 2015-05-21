@@ -42,7 +42,10 @@
 		}\
 	}
 
-#define UT_TEST(test)
+#define UT_SUITE_BEGIN void addTests() {
+#define UT_TEST(cls, test) addTest<cls>((test), (const char*)#test)
+#define UT_SUITE_END }
+
 namespace ut {
 
 	class Suite;
@@ -88,12 +91,12 @@ namespace ut {
 	template<typename SuiteT> class Context : public ContextBase {
 	public:
 		Context(SuiteT* suite) : suite_(suite) {}
-		void addTest(Test<SuiteT>::type test, const char* name) {
+		void addTest(typename Test<SuiteT>::type test, const char* name) {
 			tests_.emplace_back(test, name);
 		}
 	private:
 		class TestTraits {
-			TestTraits(Test<SuiteT>::type test, const char* name) : test_(test), name_(name) {};
+			TestTraits(typename Test<SuiteT>::type test, const char* name) : test_(test), name_(name) {};
 			typename Test<SuiteT>::type test_;
 			const char* name_;
 		};
