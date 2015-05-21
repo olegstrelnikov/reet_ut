@@ -31,30 +31,6 @@
 			ThrownUnknown(#exceptionClass, typeid((exceptionClass)), __FILE__, __func__, __LINE__);\
 		}\
 	}
-#define UT_ASSERT_NOT_THROWN(exceptionClass) NothingThrown(#exceptionClass, typeid((exceptionClass)), __FILE__, __func__, __LINE__);\
-	} catch(exceptionClass& e) {\
-		ThrownExpected(#exceptionClass, e, __FILE__, __func__, __LINE__);\
-	} catch (...) {\
-		try {\
-			throw;\
-		} catch {std::exception& e} {\
-			ThrownUnexpectedStdException(#exceptionClass, typeid((exceptionClass)), e, __FILE__, __func__, __LINE__);\
-		} catch (...) {\
-			ThrownUnknown(#exceptionClass, typeid((exceptionClass)), __FILE__, __func__, __LINE__);\
-		}\
-	}
-#define UT_ASSERT_THROWN_NOT(exceptionClass) NothingThrown(#exceptionClass, typeid((exceptionClass)), __FILE__, __func__, __LINE__);\
-	} catch(exceptionClass& e) {\
-		ThrownExpected(#exceptionClass, e, __FILE__, __func__, __LINE__);\
-	} catch (...) {\
-		try {\
-			throw;\
-		} catch {std::exception& e} {\
-			ThrownUnexpectedStdException(#exceptionClass, typeid((exceptionClass)), e, __FILE__, __func__, __LINE__);\
-		} catch (...) {\
-			ThrownUnknown(#exceptionClass, typeid((exceptionClass)), __FILE__, __func__, __LINE__);\
-		}\
-	}
 #define UT_ASSERT_NOTHING_THROWN NothingThrown(__FILE__, __func__, __LINE__);\
 	} catch (...) {\
 		try {\
@@ -66,7 +42,7 @@
 		}\
 	}
 
-
+#define UT_TEST(test)
 namespace ut {
 
 	class Suite;
@@ -96,29 +72,66 @@ namespace ut {
 	};
 
 	class ContextBase {
-
+	public:
+		virtual ~ContextBase() {}
+		void run() {
+			run_();
+		}
+	private:
+		virtual void run_() = 0;
 	};
 
-	template<typename T> class Context : public ContextBase {
+	template<typename SuiteT> struct Test {
+		typedef void (SuiteT::*type)();
+	};
 
+	template<typename SuiteT> class Context : public ContextBase {
+	public:
+		Context(SuiteT* suite) : suite_(suite) {}
+		void addTest(Test<SuiteT>::type test, const char* name) {
+			tests_.emplace_back(test, name);
+		}
+	private:
+		class TestTraits {
+			TestTraits(Test<SuiteT>::type test, const char* name) : test_(test), name_(name) {};
+			typename Test<SuiteT>::type test_;
+			const char* name_;
+		};
+		void run_() override {
+			for (auto test : tests_) {
+				suite_->setCurrentTest(test.name_);
+				suite_->*(test.test_)();
+			}
+		}
+		std::deque<TestTraits> tests_;
+		SuiteT* suite_;
 	};
 
 	class Runner;
 
 	class Suite {
 	public:
-		void run();
+		void run() {
+			context_->run();
+		}
 		void setRunner(Runner* runner) {
 			runner_ = runner;
 		}
+		void setContext(ContextBase* context) {
+			context_ = context;
+		}
 	protected:
-		Suite() : runner_(0) {}
+		Suite() : runner_(0), currentTest_(0), context_(0) {}
+		template<typename SuiteT> void addTest(typename Test<SuiteT>::type test, const char* name) {
+			dynamic_cast<Context<SuiteT>*>(context_)->addTest(test);
+		}
 		void Assert(const char* expression, bool assertion, const char* file, const char* function, size_t line) {
 
 		}
 	private:
 		Runner* runner_;
 		const char* currentTest_;
+		ContextBase* context_;
 	}; //class Suite
 
 	class Runner {
@@ -128,9 +141,10 @@ namespace ut {
 			report_(std::cout);
 		}
 		template<typename SuiteT> void add() {
-			SuiteT psuite = new SuiteT;
-			psuite->setRunner(this);
-			suites_.emplace_back(psuite);
+			SuiteT suite = new SuiteT;
+			suite->setRunner(this);
+			suite->setContext(new Context<SuiteT>(suite));
+			suites_.emplace_back(suite);
 		}
 		void run() {
 			for (auto& psuite : suites_) {
