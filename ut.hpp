@@ -42,7 +42,7 @@
 		}\
 	}
 
-#define UT_SUITE_BEGIN public: template<typename SuiteT> void addTests() {
+#define UT_SUITE_BEGIN public: template<typename SuiteT> void addTests(SuiteT*) {
 #define UT_TEST(test) addTest<SuiteT>(&SuiteT::test, #test);
 #define UT_SUITE_END } private:
 
@@ -155,7 +155,7 @@ namespace UT_NAMESPACE {
 			SuiteT* suite = new SuiteT;
 			suite->setRunner(this);
 			suite->setContext(new Context<SuiteT>(suite));
-			suite->addTests<SuiteT>();
+			suite->addTests(suite);
 			suites_.emplace_back(suite);
 		}
 		void run() {
