@@ -46,7 +46,11 @@
 #define UT_TEST(test) addTest<SuiteT>(&SuiteT::test, #test);
 #define UT_SUITE_END } private:
 
-namespace ut {
+#ifndef UT_NAMESPACE
+#define UT_NAMESPACE ut
+#endif
+
+namespace UT_NAMESPACE {
 
 	class Suite;
 
