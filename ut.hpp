@@ -10,9 +10,8 @@
 
 #include <iostream>
 #include <deque>
-#include <memory>
 
-#define UT_ASSERT(assertion) Assert(#assertion, (assertion), __FILE__, __func__, __LINE__)
+#define UT_ASSERT(assertion) runner_->Assert(#assertion, (assertion), __FILE__, __func__, __LINE__)
 
 #define UT_ASSERT_EQUALS(expected, actual) AssertEquals(#expected, #actual, (expected), (actual), __FILE__, __func__, __LINE__)
 
@@ -41,10 +40,6 @@
 			ThrownUnknown(__FILE__, __func__, __LINE__);\
 		}\
 	}
-
-#define UT_SUITE_BEGIN public: template<typename SuiteT> void addTests(SuiteT*) {
-#define UT_TEST(test) addTest<SuiteT>(&SuiteT::test, #test);
-#define UT_SUITE_END } private:
 
 #ifndef UT_NAMESPACE
 #define UT_NAMESPACE ut
@@ -78,98 +73,67 @@ namespace UT_NAMESPACE {
 		Where where_;
 	};
 
-	class ContextBase {
+	class RunnerBase {
 	public:
-		virtual ~ContextBase() {}
-		void run() {
-			run_();
+		virtual ~RunnerBase() {}
+		void Assert(const char* expression, bool assertion, const char* file, const char* function, size_t line) {
+			Assert_(expression, assertion, file, function, line);
 		}
 	private:
-		virtual void run_() = 0;
+		virtual void Assert_(const char* expression, bool assertion, const char* file, const char* function, size_t line) = 0;
 	};
 
 	template<typename SuiteT> struct Test {
 		typedef void (SuiteT::*type)();
 	};
 
-	template<typename SuiteT> class Context : public ContextBase {
+	template<typename SuiteT> class Runner : public RunnerBase {
 	public:
-		Context(SuiteT* suite) : suite_(suite) {}
+		Runner(std::ostream& os = std::cout) : os_(os), currentTest_(0) {suite_.setContext(this);}
 		void addTest(typename Test<SuiteT>::type test, const char* name) {
 			tests_.emplace_back(test, name);
 		}
-	private:
-		class TestTraits {
-		public:
-			TestTraits(typename Test<SuiteT>::type test, const char* name) : test_(test), name_(name) {};
-			typename Test<SuiteT>::type test_;
-			const char* name_;
-		};
-		void run_() override {
+		void run() {
 			for (auto test : tests_) {
-				suite_->setCurrentTest(test.name_);
+				currentTest_ = test.name_;
 				(suite_->*(test.test_))();
 			}
 		}
-		std::deque<TestTraits> tests_;
-		SuiteT* suite_;
-	};
+		~Runner() { report_(os_); }
+	private:
+		class TestRun {
+		public:
+			TestRun(typename Test<SuiteT>::type test, const char* name) : test_(test), name_(name) {};
+			typename Test<SuiteT>::type test_;
+			const char* name_;
+		};
+		const char* currentTest_;
+		std::deque<TestRun> tests_;
+		SuiteT suite_;
+		std::ostream& os_;
+		void report_(std::ostream& os) {
 
-	class Runner;
+		}
+		virtual void Assert_(const char* expression, bool assertion, const char* file, const char* function, size_t line) {
+
+		}
+	}; //class Runner
 
 	class Suite {
 	public:
-		void run() {
-			context_->run();
-		}
-		void setRunner(Runner* runner) {
-			runner_ = runner;
-		}
-		void setContext(ContextBase* context) {
-			context_ = context;
-		}
-		void setCurrentTest(const char* currentTest) {
-			currentTest_ = currentTest;
+		void setContext(RunnerBase* context) {
+			runner_ = context;
 		}
 	protected:
-		Suite() : runner_(0), currentTest_(0), context_(0) {}
+		Suite() : runner_(0) {}
+#if 0
 		template<typename SuiteT> void addTest(typename Test<SuiteT>::type test, const char* name) {
-			dynamic_cast<Context<SuiteT>*>(context_)->addTest(test, name);
+			dynamic_cast<Runner<SuiteT>*>(runner_)->addTest(test, name);
 		}
-		void Assert(const char* expression, bool assertion, const char* file, const char* function, size_t line) {
-
-		}
+#endif
 	private:
-		Runner* runner_;
-		const char* currentTest_;
-		ContextBase* context_;
+		RunnerBase* runner_;
 	}; //class Suite
-
-	class Runner {
-	public:
-		Runner() {};
-		~Runner() {
-			report_(std::cout);
-		}
-		template<typename SuiteT> void add() {
-			SuiteT* suite = new SuiteT;
-			suite->setRunner(this);
-			suite->setContext(new Context<SuiteT>(suite));
-			suite->addTests(suite);
-			suites_.emplace_back(suite);
-		}
-		void run() {
-			for (auto& psuite : suites_) {
-				psuite->run();
-			}
-		}
-	private:
-		std::deque<std::unique_ptr<Suite>> suites_;
-		std::deque<ReportLine> results_;
-		std::ostream& report_(std::ostream& os) {
-			return os;
-		}
-	}; //class Runner
 
 } //namespace ut
 
