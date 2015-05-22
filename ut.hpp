@@ -42,9 +42,9 @@
 		}\
 	}
 
-#define UT_SUITE_BEGIN void addTests() {
-#define UT_TEST(cls, test) addTest<cls>((test), (const char*)#test)
-#define UT_SUITE_END }
+#define UT_SUITE_BEGIN public: template<typename SuiteT> void addTests() {
+#define UT_TEST(test) addTest<SuiteT>(&SuiteT::test, #test);
+#define UT_SUITE_END } private:
 
 namespace ut {
 
@@ -96,6 +96,7 @@ namespace ut {
 		}
 	private:
 		class TestTraits {
+		public:
 			TestTraits(typename Test<SuiteT>::type test, const char* name) : test_(test), name_(name) {};
 			typename Test<SuiteT>::type test_;
 			const char* name_;
@@ -103,7 +104,7 @@ namespace ut {
 		void run_() override {
 			for (auto test : tests_) {
 				suite_->setCurrentTest(test.name_);
-				suite_->*(test.test_)();
+				(suite_->*(test.test_))();
 			}
 		}
 		std::deque<TestTraits> tests_;
@@ -123,10 +124,13 @@ namespace ut {
 		void setContext(ContextBase* context) {
 			context_ = context;
 		}
+		void setCurrentTest(const char* currentTest) {
+			currentTest_ = currentTest;
+		}
 	protected:
 		Suite() : runner_(0), currentTest_(0), context_(0) {}
 		template<typename SuiteT> void addTest(typename Test<SuiteT>::type test, const char* name) {
-			dynamic_cast<Context<SuiteT>*>(context_)->addTest(test);
+			dynamic_cast<Context<SuiteT>*>(context_)->addTest(test, name);
 		}
 		void Assert(const char* expression, bool assertion, const char* file, const char* function, size_t line) {
 
@@ -144,9 +148,10 @@ namespace ut {
 			report_(std::cout);
 		}
 		template<typename SuiteT> void add() {
-			SuiteT suite = new SuiteT;
+			SuiteT* suite = new SuiteT;
 			suite->setRunner(this);
 			suite->setContext(new Context<SuiteT>(suite));
+			suite->addTests<SuiteT>();
 			suites_.emplace_back(suite);
 		}
 		void run() {
