@@ -8,8 +8,10 @@
 #ifndef UT_HPP_
 #define UT_HPP_
 
-#include <iostream>
 #include <deque>
+#include <algorithm>
+#include <iostream>
+#include <exception>
 
 #define UT_ASSERT(assertion) runner_->Assert(#assertion, (assertion), __FILE__, __func__, __LINE__)
 
@@ -17,9 +19,8 @@
 
 #define UT_ASERT_NOT_EQUALS(expected, actual) AssertNotEquals(#expected, #actual, (expected), (actual), __FILE__, __func__, __LINE__)
 
-#define UT_TRY try {
 #define UT_ASSERT_THROWN(exceptionClass) NothingThrown(#exceptionClass, typeid((exceptionClass)), __FILE__, __func__, __LINE__);\
-	} catch(exceptionClass& e) {\
+	catch(exceptionClass& e) {\
 		ThrownExpected(#exceptionClass, e, __FILE__, __func__, __LINE__);\
 	} catch (...) {\
 		try {\
@@ -31,7 +32,7 @@
 		}\
 	}
 #define UT_ASSERT_NOTHING_THROWN NothingThrown(__FILE__, __func__, __LINE__);\
-	} catch (...) {\
+	catch (...) {\
 		try {\
 			throw;\
 		} catch {std::exception& e} {\
@@ -89,24 +90,86 @@ namespace UT_NAMESPACE {
 
 	template<typename SuiteT> class Runner : public RunnerBase {
 	public:
-		Runner(std::ostream& os = std::cout) : os_(os), currentTest_(0) {suite_.setContext(this);}
+		Runner(std::ostream& os = std::cout) : currentTest_(0), suite_(), os_(os) {suite_.setContext(this);}
 		void addTest(typename Test<SuiteT>::type test, const char* name) {
-			tests_.emplace_back(test, name);
+			tests_.emplace_back(test, name, &Runner::call_);
+		}
+		template<typename Exception>void addTestThrowing(typename Test<SuiteT>::type test, const char* name) {
+			tests_.emplace_back(test, name, &Runner::expect_<Exception>);
 		}
 		void run() {
-			for (auto test : tests_) {
-				currentTest_ = test.name_;
-				(suite_->*(test.test_))();
+			for (TestRun& test : tests_) {
+				os_ << (currentTest_ = test.name_) << ": ";
+				(this->*(test.caller_))(test);
+				os_ << " - " << (test.isFinished() ? "finished" : "aborted");
+				if (test.thrown()) {
+					os_ << " (thrown " <<  (test.isFinished() ? "expected" : "unexpected");
+					if (test.thrownMessage_) {
+						os_ << " \"" << test.thrownMessage_ << "\"";
+					}
+					os_ << ")";
+				}
+				os_ << "\n";
 			}
 		}
 		~Runner() { report_(os_); }
 	private:
 		class TestRun {
 		public:
-			TestRun(typename Test<SuiteT>::type test, const char* name) : test_(test), name_(name) {};
+			typedef void (Runner::*caller)(TestRun&);
+			TestRun(typename Test<SuiteT>::type test, const char* name, caller call)
+				: state_(NotStarted), test_(test), name_(name), caller_(call), thrownMessage_(0) {};
+			enum {NotStarted, Running, NothingThrownAsExpected, CaughtExpected, CaughtUnexpected, NotThrownButExpected} state_;
 			typename Test<SuiteT>::type test_;
 			const char* name_;
-		};
+			caller caller_;
+			const char* thrownMessage_;
+			bool isFinished() const {
+				return NothingThrownAsExpected == state_ || CaughtExpected == state_;
+			}
+			bool thrown() const {
+				return CaughtExpected == state_ || CaughtUnexpected == state_;
+			}
+
+		}; //class TestRun
+		void call_(TestRun& test) {
+			try {
+				test.state_ = TestRun::Running;
+				(suite_.*(test.test_))();
+				test.state_ = TestRun::NothingThrownAsExpected;
+			} catch (...) {
+				test.state_ = TestRun::CaughtUnexpected;
+				try {
+					throw;
+				} catch (std::exception& e) {
+					test.thrownMessage_ = e.what();
+				} catch (...) {
+				}
+			}
+		} //call_()
+		template<typename Exception> void expect_(TestRun& test) {
+			try {
+				test.state_ = TestRun::Running;
+				(suite_.*(test.test_))();
+				test.state_ = TestRun::NotThrownButExpected;
+			} catch (Exception&) {
+				test.state_ = TestRun::CaughtExpected;
+				try {
+					throw;
+				} catch (std::exception& e) {
+					test.thrownMessage_ = e.what();
+				} catch (...) {
+				}
+			} catch (...) {
+				test.state_ = TestRun::CaughtUnexpected;
+				try {
+					throw;
+				} catch (std::exception& e) {
+					test.thrownMessage_ = e.what();
+				} catch (...) {
+				}
+			}
+		} //expect_()
 		const char* currentTest_;
 		std::deque<TestRun> tests_;
 		SuiteT suite_;
@@ -126,11 +189,6 @@ namespace UT_NAMESPACE {
 		}
 	protected:
 		Suite() : runner_(0) {}
-#if 0
-		template<typename SuiteT> void addTest(typename Test<SuiteT>::type test, const char* name) {
-			dynamic_cast<Runner<SuiteT>*>(runner_)->addTest(test, name);
-		}
-#endif
 	private:
 		RunnerBase* runner_;
 	}; //class Suite
