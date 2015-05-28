@@ -10,7 +10,8 @@
 
 #include <deque>
 #include <algorithm>
-#include <iostream>
+#include <memory>
+
 #include <exception>
 
 #define UT_ASSERT(assertion) runner_->Assert(#assertion, (assertion), __FILE__, __func__, __LINE__)
@@ -48,24 +49,57 @@
 
 namespace UT_NAMESPACE {
 
-	class Suite;
-
 	class Where {
 	public:
-		Where(const char* file, const char* function, size_t line, const char* initialFunction, Suite const* psuite)
-			: file_(file), function_(function), line_(line), testName_(initialFunction), psuite_(psuite) {};
+		Where(const char* file, const char* function, unsigned line, const char* initialFunction)
+			: file_(file), function_(function), line_(line), testName_(initialFunction) {};
 		std::ostream& str(std::ostream& os) const {
 			return os << file_ << ":" << function_ << "():" << line_ << ": ";
 		}
 	private:
 		const char* file_;
 		const char* function_;
-		size_t line_;
+		unsigned line_;
 		const char* testName_;
-		Suite const* psuite_;
 	};
 
-	enum TestReult {UnexpectedException, };
+	class Notification {
+	public:
+		enum Type {SuiteStarted, SuiteFinished, TestStarted, TestFinished, TestAborted, AssertionSucceeded, AssertionFailed};
+		virtual ~Notification() {};
+		Type type() const {
+			return getType_();
+		}
+		bool hasException() const {
+			return hastException_();
+		}
+		const char* exceptionMessage() const {
+			return getExceptionMessage_();
+		}
+		const char* getName() const {
+			return getName_();
+		}
+	private:
+		virtual Type getType_() const = 0;
+		virtual bool hastException_() const { return false; }
+		virtual const char* getExceptionMessage_() const { return nullptr; }
+		virtual const char* getName_() const { return nullptr; }
+	}; //class Notification
+
+	class Collector {
+	public:
+		virtual ~Collector() {}
+		void notify(std::unique_ptr<Notification>&& n) {
+			notify_(std::move(n));
+		}
+	protected:
+		virtual void notify_(std::unique_ptr<Notification>&& n) {
+			n_.push_back(std::move(n));
+		}
+	private:
+		std::deque<std::unique_ptr<Notification>> n_;
+	};
+
 	class ReportLine {
 	public:
 		enum What {Ok, Fail, AnotherExceptionExpected, NotThrown};
@@ -77,11 +111,11 @@ namespace UT_NAMESPACE {
 	class RunnerBase {
 	public:
 		virtual ~RunnerBase() {}
-		void Assert(const char* expression, bool assertion, const char* file, const char* function, size_t line) {
+		void Assert(const char* expression, bool assertion, const char* file, const char* function, unsigned line) {
 			Assert_(expression, assertion, file, function, line);
 		}
 	private:
-		virtual void Assert_(const char* expression, bool assertion, const char* file, const char* function, size_t line) = 0;
+		virtual void Assert_(const char* expression, bool assertion, const char* file, const char* function, unsigned line) = 0;
 	};
 
 	template<typename SuiteT> struct Test {
@@ -90,7 +124,7 @@ namespace UT_NAMESPACE {
 
 	template<typename SuiteT> class Runner : public RunnerBase {
 	public:
-		Runner(std::ostream& os = std::cout) : currentTest_(0), suite_(), os_(os) {suite_.setContext(this);}
+		Runner(Collector& collector, const char* suiteName) : currentTest_(nullptr), suite_(), collector_(collector), suiteName_(suiteName) {suite_.setContext(this);}
 		void addTest(typename Test<SuiteT>::type test, const char* name) {
 			tests_.emplace_back(test, name, &Runner::call_);
 		}
@@ -98,27 +132,20 @@ namespace UT_NAMESPACE {
 			tests_.emplace_back(test, name, &Runner::expect_<Exception>);
 		}
 		void run() {
+			collector_.notify(std::move(std::unique_ptr<SuiteNotification>(new SuiteNotification(suiteName_, true))));
 			for (TestRun& test : tests_) {
-				os_ << (currentTest_ = test.name_) << ": ";
+				collector_.notify(std::move(std::unique_ptr<TestNotification>(new TestNotification(currentTest_ = test.name_, test))));
 				(this->*(test.caller_))(test);
-				os_ << " - " << (test.isFinished() ? "finished" : "aborted");
-				if (test.thrown()) {
-					os_ << " (thrown " <<  (test.isFinished() ? "expected" : "unexpected");
-					if (test.thrownMessage_) {
-						os_ << " \"" << test.thrownMessage_ << "\"";
-					}
-					os_ << ")";
-				}
-				os_ << "\n";
+				collector_.notify(std::move(std::unique_ptr<TestNotification>(new TestNotification(currentTest_, test))));
 			}
+			collector_.notify(std::move(std::unique_ptr<SuiteNotification>(new SuiteNotification(suiteName_, false))));
 		}
-		~Runner() { report_(os_); }
 	private:
 		class TestRun {
 		public:
 			typedef void (Runner::*caller)(TestRun&);
 			TestRun(typename Test<SuiteT>::type test, const char* name, caller call)
-				: state_(NotStarted), test_(test), name_(name), caller_(call), thrownMessage_(0) {};
+				: state_(NotStarted), test_(test), name_(name), caller_(call), thrownMessage_(nullptr) {};
 			enum {NotStarted, Running, NothingThrownAsExpected, CaughtExpected, CaughtUnexpected, NotThrownButExpected} state_;
 			typename Test<SuiteT>::type test_;
 			const char* name_;
@@ -130,8 +157,35 @@ namespace UT_NAMESPACE {
 			bool thrown() const {
 				return CaughtExpected == state_ || CaughtUnexpected == state_;
 			}
-
+			Notification::Type notification() const {
+				return NotStarted == state_ ? Notification::TestStarted : isFinished() ? Notification::TestFinished : Notification::TestAborted;
+			}
 		}; //class TestRun
+
+		class SuiteNotification : public Notification {
+		public:
+			SuiteNotification(const char* name, bool start) : suiteName_(name), start_(start) {}
+		private:
+			const char* suiteName_;
+			bool start_;
+			Type getType_() const override { return start_ ? SuiteStarted : SuiteFinished; }
+			const char* getName_() const override { return suiteName_; }
+		}; //class SuiteNotification
+
+		class TestNotification : public Notification {
+		public:
+			TestNotification(const char* name, TestRun const& r) : testName_(name), type_(r.notification()), thrown_(r.thrown()), exceptionMessage_(r.thrownMessage_) {}
+		private:
+			const char* testName_;
+			Type type_;
+			bool thrown_;
+			const char* exceptionMessage_;
+			Type getType_() const override { return type_; }
+			bool hastException_() const override { return thrown_; }
+			const char* getExceptionMessage_() const override { return exceptionMessage_; }
+			const char* getName_() const override { return testName_; }
+		}; //class TestNotification
+
 		void call_(TestRun& test) {
 			try {
 				test.state_ = TestRun::Running;
@@ -173,11 +227,22 @@ namespace UT_NAMESPACE {
 		const char* currentTest_;
 		std::deque<TestRun> tests_;
 		SuiteT suite_;
-		std::ostream& os_;
-		void report_(std::ostream& os) {
+		Collector& collector_;
+		const char* suiteName_;
 
+		unsigned getFinished_() const {
+			return 0;
 		}
-		virtual void Assert_(const char* expression, bool assertion, const char* file, const char* function, size_t line) {
+		unsigned getAborted_() const {
+			return 0;
+		}
+		std::ostream& testTotals_(std::ostream& os) const {
+			return os << "Test runs: " << tests_.size() << ", finished: " << getFinished_() << ", aborted: " << getAborted_();
+		}
+		std::ostream& report_(std::ostream& os) const {
+			return testTotals_(os) << "\n";
+		}
+		virtual void Assert_(const char* expression, bool assertion, const char* file, const char* function, unsigned line) {
 
 		}
 	}; //class Runner
@@ -188,7 +253,7 @@ namespace UT_NAMESPACE {
 			runner_ = context;
 		}
 	protected:
-		Suite() : runner_(0) {}
+		Suite() : runner_(nullptr) {}
 	private:
 		RunnerBase* runner_;
 	}; //class Suite
