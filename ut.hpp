@@ -16,9 +16,9 @@
 
 #define UT_ASSERT(assertion) runner_->Assert(#assertion, (assertion), __FILE__, __func__, __LINE__)
 
-#define UT_ASSERT_EQUALS(expected, actual) AssertEquals(#expected, #actual, (expected), (actual), __FILE__, __func__, __LINE__)
+#define UT_ASSERT_EQUAL(expected, actual) AssertEqual(#expected, #actual, (expected), (actual), __FILE__, __func__, __LINE__)
 
-#define UT_ASERT_NOT_EQUALS(expected, actual) AssertNotEquals(#expected, #actual, (expected), (actual), __FILE__, __func__, __LINE__)
+#define UT_ASERT_NOT_EQUAL(expected, actual) AssertNotEqual(#expected, #actual, (expected), (actual), __FILE__, __func__, __LINE__)
 
 #define UT_ASSERT_THROWN(exceptionClass) NothingThrown(#exceptionClass, typeid((exceptionClass)), __FILE__, __func__, __LINE__);\
 	catch(exceptionClass& e) {\
@@ -53,9 +53,6 @@ namespace UT_NAMESPACE {
 	public:
 		Where(const char* file, const char* function, unsigned line, const char* initialFunction)
 			: file_(file), function_(function), line_(line), testName_(initialFunction) {};
-		std::ostream& str(std::ostream& os) const {
-			return os << file_ << ":" << function_ << "():" << line_ << ": ";
-		}
 	private:
 		const char* file_;
 		const char* function_;
@@ -71,7 +68,7 @@ namespace UT_NAMESPACE {
 			return getType_();
 		}
 		bool hasException() const {
-			return hastException_();
+			return hasException_();
 		}
 		const char* exceptionMessage() const {
 			return getExceptionMessage_();
@@ -81,7 +78,7 @@ namespace UT_NAMESPACE {
 		}
 	private:
 		virtual Type getType_() const = 0;
-		virtual bool hastException_() const { return false; }
+		virtual bool hasException_() const { return false; }
 		virtual const char* getExceptionMessage_() const { return nullptr; }
 		virtual const char* getName_() const { return nullptr; }
 	}; //class Notification
@@ -181,7 +178,7 @@ namespace UT_NAMESPACE {
 			bool thrown_;
 			const char* exceptionMessage_;
 			Type getType_() const override { return type_; }
-			bool hastException_() const override { return thrown_; }
+			bool hasException_() const override { return thrown_; }
 			const char* getExceptionMessage_() const override { return exceptionMessage_; }
 			const char* getName_() const override { return testName_; }
 		}; //class TestNotification
