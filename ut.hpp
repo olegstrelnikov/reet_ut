@@ -12,8 +12,6 @@
 #include <algorithm>
 #include <memory>
 
-#include <exception>
-
 #define UT_ASSERT(assertion) runner_->Assert(#assertion, (assertion), __FILE__, __func__, __LINE__)
 
 #define UT_ASSERT_EQUAL(expected, actual) AssertEqual(#expected, #actual, (expected), (actual), __FILE__, __func__, __LINE__)
@@ -105,6 +103,34 @@ namespace UT_NAMESPACE {
 		Where where_;
 	};
 
+	template<typename Serializer>
+	class ExceptionHandler {
+	public:
+		typedef typename Serializer::Exception Exception;
+		template<typename Out> inline static void Serialize(Exception const& e, Out out) { Serializer::what(e, out); }
+	};
+
+	template<typename Out, typename CharT> void copyz(CharT const* p, Out o) {
+		if (p) {
+			for (; *p; ++p, ++o) {
+				*o = *p;
+			}
+		}
+	}
+
+	template<typename E> class What {
+	public:
+		typedef E Exception;
+		template<typename Out> static void what(Exception const& e, Out o) {
+			copyz(e.what(), o);
+		}
+		template<typename ClassOut> static void getClass(ClassOut o) {
+#define UT_CLASS_NAME(className) #className
+			copyz(UT_CLASS_NAME(E), o);
+#undef UT_CLASS_NAME
+		}
+	};
+
 	class RunnerBase {
 	public:
 		virtual ~RunnerBase() {}
@@ -138,6 +164,45 @@ namespace UT_NAMESPACE {
 			collector_.notify(std::move(std::unique_ptr<SuiteNotification>(new SuiteNotification(suiteName_, false))));
 		}
 	private:
+
+		enum ExceptionHandlerResult {NothingThrown, ThrownKnown, ThrownUnknown};
+
+		template<typename... EHs> class Catch;
+
+		template<typename EH, typename... EHs> class Catch<EH, EHs...> {
+		public:
+			template<typename Out, typename ClassOut> static ExceptionHandlerResult whatWasThrown(Out out, ClassOut classOut) {
+				try {
+					throw;
+				} catch (typename EH::Exception& e) {
+					EH::Serialize(e, out);
+					return ThrownKnown;
+				} catch (...) {
+					return Catch<EHs...>::whatWasThrown(out);
+				}
+			}
+		};
+
+		template<> class Catch<> {
+		public:
+			template<typename Out, typename ClassOut> static ExceptionHandlerResult whatWasThrown(Out, ClassOut) {
+				try {
+					throw;
+				} catch (...) {
+					return ThrownUnknown;
+				}
+			}
+		};
+
+		template<typename FN, typename Out, typename ClassOut, typename... EHs> ExceptionHandlerResult whatThrowns(FN fn, Out out, ClassOut classOut) {
+			try {
+				fn();
+				return NothingThrown;
+			} catch (...) {
+				return Catch<EHs...>::whatWasThrown(out, classOut);
+			}
+		}
+
 		class TestRun {
 		public:
 			typedef void (Runner::*caller)(TestRun&);
