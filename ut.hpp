@@ -52,10 +52,10 @@ namespace UT_NAMESPACE {
 		Where(const char* file, const char* function, unsigned line, const char* initialFunction)
 			: file_(file), function_(function), line_(line), testName_(initialFunction) {};
 	private:
-		const char* file_;
-		const char* function_;
+		std::deque<char> file_;
+		std::deque<char> function_;
 		unsigned line_;
-		const char* testName_;
+		std::deque<char> testName_;
 	};
 
 	class Notification {
@@ -203,6 +203,36 @@ namespace UT_NAMESPACE {
 			}
 		}
 
+		template<typename T1, typename T2> struct AreTypes {
+			static constexpr bool Equal = false;
+		};
+
+		template<typename T> struct AreTypes<T, T> {
+			static constexpr bool Equal = true;
+		};
+
+		template<typename ...> struct index;
+
+		template<typename T1, typename T2> struct index<T1, T2> {
+			static constexpr std::size_t get() {
+				return AreTypes<T1, T2>::Equal ? 1 : 0;
+			}
+		};
+
+		template<typename T1, typename T2, typename... TT> struct index<T1, T2, TT...> {
+			static constexpr std::size_t get() {
+				return AreTypes<T1, T2>::Equal ? 1 + sizeof... (TT) : index<T1, TT...>::get();
+			}
+		};
+
+		template<typename T> static constexpr std::size_t indexOf() {
+			return index<T, Types...>::get();
+		}
+
+		template<typename T> struct Type {
+			enum {index = indexOf<T>()};
+		};
+
 		class TestRun {
 		public:
 			typedef void (Runner::*caller)(TestRun&);
@@ -210,9 +240,9 @@ namespace UT_NAMESPACE {
 				: state_(NotStarted), test_(test), name_(name), caller_(call), thrownMessage_(nullptr) {};
 			enum {NotStarted, Running, NothingThrownAsExpected, CaughtExpected, CaughtUnexpected, NotThrownButExpected} state_;
 			typename Test<SuiteT>::type test_;
-			const char* name_;
+			std::deque<char> name_;
 			caller caller_;
-			const char* thrownMessage_;
+			std::deque<char> thrownMessage_;
 			bool isFinished() const {
 				return NothingThrownAsExpected == state_ || CaughtExpected == state_;
 			}
@@ -228,7 +258,7 @@ namespace UT_NAMESPACE {
 		public:
 			SuiteNotification(const char* name, bool start) : suiteName_(name), start_(start) {}
 		private:
-			const char* suiteName_;
+			std::deque<char> suiteName_;
 			bool start_;
 			Type getType_() const override { return start_ ? SuiteStarted : SuiteFinished; }
 			const char* getName_() const override { return suiteName_; }
@@ -238,10 +268,10 @@ namespace UT_NAMESPACE {
 		public:
 			TestNotification(const char* name, TestRun const& r) : testName_(name), type_(r.notification()), thrown_(r.thrown()), exceptionMessage_(r.thrownMessage_) {}
 		private:
-			const char* testName_;
+			std::deque<char> testName_;
 			Type type_;
 			bool thrown_;
-			const char* exceptionMessage_;
+			std::deque<char> exceptionMessage_;
 			Type getType_() const override { return type_; }
 			bool hasException_() const override { return thrown_; }
 			const char* getExceptionMessage_() const override { return exceptionMessage_; }
@@ -286,11 +316,11 @@ namespace UT_NAMESPACE {
 				}
 			}
 		} //expect_()
-		const char* currentTest_;
+		std::deque<char> currentTest_;
 		std::deque<TestRun> tests_;
 		SuiteT suite_;
 		Collector& collector_;
-		const char* suiteName_;
+		std::deque<char> suiteName_;
 
 		unsigned getFinished_() const {
 			return 0;
