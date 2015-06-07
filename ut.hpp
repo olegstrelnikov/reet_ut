@@ -11,6 +11,7 @@
 #include <deque>
 #include <algorithm>
 #include <memory>
+#include <iterator>
 
 #define UT_ASSERT(assertion) runner_->Assert(#assertion, (assertion), __FILE__, __func__, __LINE__)
 
@@ -47,10 +48,22 @@
 
 namespace UT_NAMESPACE {
 
+	template<typename Out, typename CharT> void copyz(CharT const* p, Out o) {
+		if (p) {
+			for (; *p; ++p, ++o) {
+				*o = *p;
+			}
+		}
+	} //copyz()
+
 	class Where {
 	public:
 		Where(const char* file, const char* function, unsigned line, const char* initialFunction)
-			: file_(file), function_(function), line_(line), testName_(initialFunction) {};
+			: line_(line) {
+			copyz(file, std::back_inserter(file_));
+			copyz(function, std::back_inserter(function_));
+			copyz(initialFunction, std::back_inserter(testName_));
+		};
 	private:
 		std::deque<char> file_;
 		std::deque<char> function_;
@@ -110,14 +123,6 @@ namespace UT_NAMESPACE {
 		template<typename Out> inline static void Serialize(Exception const& e, Out out) { Serializer::what(e, out); }
 	};
 
-	template<typename Out, typename CharT> void copyz(CharT const* p, Out o) {
-		if (p) {
-			for (; *p; ++p, ++o) {
-				*o = *p;
-			}
-		}
-	}
-
 	template<typename E> class What {
 	public:
 		typedef E Exception;
@@ -145,9 +150,15 @@ namespace UT_NAMESPACE {
 		typedef void (SuiteT::*type)();
 	};
 
-	template<typename SuiteT> class Runner : public RunnerBase {
+	template<typename SuiteT, typename... EHVocabulary> class Runner : public RunnerBase {
 	public:
-		Runner(Collector& collector, const char* suiteName) : currentTest_(nullptr), suite_(), collector_(collector), suiteName_(suiteName) {suite_.setContext(this);}
+		template<typename... Strings> Runner(Collector& collector, const char* suiteName, Strings... strings)
+			: suite_(), collector_(collector) {
+			suite_.setContext(this);
+			copyz(suiteName, std::back_inserter(suiteName_));
+			TypeListManager::storeNamesTo(exceptions_, strings...);
+		}
+
 		void addTest(typename Test<SuiteT>::type test, const char* name) {
 			tests_.emplace_back(test, name, &Runner::call_);
 		}
@@ -203,35 +214,69 @@ namespace UT_NAMESPACE {
 			}
 		}
 
-		template<typename T1, typename T2> struct AreTypes {
-			static constexpr bool Equal = false;
-		};
-
-		template<typename T> struct AreTypes<T, T> {
-			static constexpr bool Equal = true;
-		};
-
-		template<typename ...> struct index;
-
-		template<typename T1, typename T2> struct index<T1, T2> {
-			static constexpr std::size_t get() {
-				return AreTypes<T1, T2>::Equal ? 1 : 0;
+		class TypeListManager {
+		public:
+			template<typename... Strings> static void storeNamesTo(std::deque<char> names[], Strings... strings) {
+				name_<EHVocabulary...>::store(names, strings...);
 			}
-		};
-
-		template<typename T1, typename T2, typename... TT> struct index<T1, T2, TT...> {
-			static constexpr std::size_t get() {
-				return AreTypes<T1, T2>::Equal ? 1 + sizeof... (TT) : index<T1, TT...>::get();
+			template<typename T, typename Out> static void getNameOf(std::deque<char> names[], Out o) {
+				std::deque<char>& s = names[indexOf_<T>()];
+				std::copy(s.begin(), s.end(), o);
 			}
-		};
+			template<typename T> static bool hasName() {
+				return index_<T, EHVocabulary...>::has();
+			}
 
-		template<typename T> static constexpr std::size_t indexOf() {
-			return index<T, Types...>::get();
-		}
+		private:
+			template<typename ...> struct index_ {
+				static constexpr bool has() {
+					return false;
+				}
+			};
 
-		template<typename T> struct Type {
-			enum {index = indexOf<T>()};
-		};
+			template<typename T1, typename T2, typename... TT> struct index_<T1, T2, TT...> {
+				static constexpr std::size_t get() {
+					return index_<T1, TT...>::get();
+				}
+				static constexpr bool has() {
+					return index_<T1, TT...>::has();
+				}
+			};
+
+			template<typename T, typename... TT> struct index_<T, T, TT...> {
+				static constexpr std::size_t get() {
+					return 1 + sizeof... (TT);
+				}
+				static constexpr bool has() {
+					return true;
+				}
+			};
+
+			template<typename T> static constexpr std::size_t indexOf_() {
+				return index_<T, EHVocabulary...>::get();
+			}
+
+			template<typename... TT> class name_ {
+			public:
+				static void store(std::deque<char> []) {
+				}
+			};
+
+			template<typename T> class name_<T> {
+			public:
+				static void store(std::deque<char> names[], const char* s) {
+					copyz(s, std::back_inserter(names[indexOf_<T>()]));
+				}
+			};
+
+			template<typename T, typename... TT> class name_<T, TT...> {
+			public:
+				template<typename... Strings> static void store(std::deque<char> names[], const char* s, Strings... strings) {
+					name_<T>::store(names, s);
+					name_<TT...>::store(names, strings...);
+				}
+			};
+		}; //class TypeListManager
 
 		class TestRun {
 		public:
@@ -321,6 +366,7 @@ namespace UT_NAMESPACE {
 		SuiteT suite_;
 		Collector& collector_;
 		std::deque<char> suiteName_;
+		std::deque<char> exceptions_[1 + sizeof... (EHVocabulary)];
 
 		unsigned getFinished_() const {
 			return 0;
