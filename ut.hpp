@@ -81,17 +81,17 @@ namespace UT_NAMESPACE {
 		bool hasException() const {
 			return hasException_();
 		}
-		const char* exceptionMessage() const {
+		std::deque<char> const& exceptionMessage() const {
 			return getExceptionMessage_();
 		}
-		const char* getName() const {
+		std::deque<char> const& getName() const {
 			return getName_();
 		}
 	private:
 		virtual Type getType_() const = 0;
 		virtual bool hasException_() const { return false; }
-		virtual const char* getExceptionMessage_() const { return nullptr; }
-		virtual const char* getName_() const { return nullptr; }
+		virtual std::deque<char> const& getExceptionMessage_() const;
+		virtual std::deque<char> const& getName_() const;
 	}; //class Notification
 
 	class Collector {
@@ -178,7 +178,16 @@ namespace UT_NAMESPACE {
 
 		enum ExceptionHandlerResult {NothingThrown, ThrownKnown, ThrownUnknown};
 
-		template<typename... EHs> class Catch;
+		template<typename... EHs> class Catch {
+		public:
+			template<typename Out, typename ClassOut> static ExceptionHandlerResult whatWasThrown(Out, ClassOut) {
+				try {
+					throw;
+				} catch (...) {
+					return ThrownUnknown;
+				}
+			}
+		};
 
 		template<typename EH, typename... EHs> class Catch<EH, EHs...> {
 		public:
@@ -190,17 +199,6 @@ namespace UT_NAMESPACE {
 					return ThrownKnown;
 				} catch (...) {
 					return Catch<EHs...>::whatWasThrown(out);
-				}
-			}
-		};
-
-		template<> class Catch<> {
-		public:
-			template<typename Out, typename ClassOut> static ExceptionHandlerResult whatWasThrown(Out, ClassOut) {
-				try {
-					throw;
-				} catch (...) {
-					return ThrownUnknown;
 				}
 			}
 		};
@@ -282,7 +280,9 @@ namespace UT_NAMESPACE {
 		public:
 			typedef void (Runner::*caller)(TestRun&);
 			TestRun(typename Test<SuiteT>::type test, const char* name, caller call)
-				: state_(NotStarted), test_(test), name_(name), caller_(call), thrownMessage_(nullptr) {};
+				: state_(NotStarted), test_(test), caller_(call) {
+				copyz(name, std::back_inserter(name_));
+			};
 			enum {NotStarted, Running, NothingThrownAsExpected, CaughtExpected, CaughtUnexpected, NotThrownButExpected} state_;
 			typename Test<SuiteT>::type test_;
 			std::deque<char> name_;
@@ -301,17 +301,17 @@ namespace UT_NAMESPACE {
 
 		class SuiteNotification : public Notification {
 		public:
-			SuiteNotification(const char* name, bool start) : suiteName_(name), start_(start) {}
+			SuiteNotification(std::deque<char> const& name, bool start) : suiteName_(name), start_(start) {}
 		private:
 			std::deque<char> suiteName_;
 			bool start_;
 			Type getType_() const override { return start_ ? SuiteStarted : SuiteFinished; }
-			const char* getName_() const override { return suiteName_; }
+			virtual std::deque<char> const& getName_() const override { return suiteName_; }
 		}; //class SuiteNotification
 
 		class TestNotification : public Notification {
 		public:
-			TestNotification(const char* name, TestRun const& r) : testName_(name), type_(r.notification()), thrown_(r.thrown()), exceptionMessage_(r.thrownMessage_) {}
+			TestNotification(std::deque<char> const& name, TestRun const& r) : testName_(name), type_(r.notification()), thrown_(r.thrown()), exceptionMessage_(r.thrownMessage_) {}
 		private:
 			std::deque<char> testName_;
 			Type type_;
@@ -319,8 +319,8 @@ namespace UT_NAMESPACE {
 			std::deque<char> exceptionMessage_;
 			Type getType_() const override { return type_; }
 			bool hasException_() const override { return thrown_; }
-			const char* getExceptionMessage_() const override { return exceptionMessage_; }
-			const char* getName_() const override { return testName_; }
+			std::deque<char> const& getExceptionMessage_() const override { return exceptionMessage_; }
+			std::deque<char> const& getName_() const override { return testName_; }
 		}; //class TestNotification
 
 		void call_(TestRun& test) {
@@ -333,7 +333,7 @@ namespace UT_NAMESPACE {
 				try {
 					throw;
 				} catch (std::exception& e) {
-					test.thrownMessage_ = e.what();
+					copyz(e.what(), test.thrownMessage_);
 				} catch (...) {
 				}
 			}
@@ -348,7 +348,7 @@ namespace UT_NAMESPACE {
 				try {
 					throw;
 				} catch (std::exception& e) {
-					test.thrownMessage_ = e.what();
+					copyz(e.what(), test.thrownMessage_);
 				} catch (...) {
 				}
 			} catch (...) {
@@ -356,7 +356,7 @@ namespace UT_NAMESPACE {
 				try {
 					throw;
 				} catch (std::exception& e) {
-					test.thrownMessage_ = e.what();
+					copyz(e.what(), test.thrownMessage_);
 				} catch (...) {
 				}
 			}
