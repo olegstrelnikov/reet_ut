@@ -25,25 +25,34 @@ namespace UT_NAMESPACE {
 		void notify_(std::unique_ptr<Notification>&& n) override {
 			switch (n->type()) {
 				case Notification::SuiteStarted: {
-					os_ << "Suite " << n->getName() << " started\n";
+					os_ << "Suite ";
+					std::deque<char> const& name = n->getName();
+					std::copy(std::begin(name), std::end(name), std::ostream_iterator<char>(os_));
+					os_ << " started\n";
 					break;
 				}
 				case Notification::SuiteFinished: {
-					os_ << "Suite " << n->getName() << " finished\n";
+					os_ << "Suite ";
+					std::deque<char> const& name = n->getName();
+					std::copy(std::begin(name), std::end(name), std::ostream_iterator<char>(os_));
+					os_ << " finished\n";
 					os_ << "\n";
 					break;
 				}
 				case Notification::TestStarted: {
-					os_ << n->getName() << ": ";
+					std::deque<char> const& name = n->getName();
+					std::copy(std::begin(name), std::end(name), std::ostream_iterator<char>(os_));
+					os_ << ": ";
 					break;
 				}
 				case Notification::TestFinished: {
 					os_ << " - finished";
 					if (n->hasException()) {
 						os_ << " (thrown expected";
-						if (n->exceptionMessage()) {
-							os_ << " \"" << n->exceptionMessage() << "\"";
-						}
+						os_ << " \"";
+						std::deque<char> const& message = n->exceptionMessage();
+						std::copy(std::begin(message), std::end(message), std::ostream_iterator<char>(os_));
+						os_ << "\"";
 						os_ << ")";
 					}
 					os_ << "\n";
@@ -53,9 +62,10 @@ namespace UT_NAMESPACE {
 					os_ << " - aborted";
 					if (n->hasException()) {
 						os_ << " (thrown unexpected";
-						if (n->exceptionMessage()) {
-							os_ << " \"" << n->exceptionMessage() << "\"";
-						}
+						os_ << " \"";
+						std::deque<char> const& message = n->exceptionMessage();
+						std::copy(std::begin(message), std::end(message), std::ostream_iterator<char>(os_));
+						os_ << "\"";
 						os_ << ")";
 					}
 					os_ << "\n";
