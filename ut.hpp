@@ -78,19 +78,15 @@ namespace UT_NAMESPACE {
 		Type type() const {
 			return getType_();
 		}
-		bool hasException() const {
-			return hasException_();
-		}
-		std::deque<char> const& exceptionMessage() const {
-			return getExceptionMessage_();
+		bool hasException(std::deque<char> const** ppMessage) const {
+			return hasException_(ppMessage);
 		}
 		std::deque<char> const& getName() const {
 			return getName_();
 		}
 	private:
 		virtual Type getType_() const = 0;
-		virtual bool hasException_() const { return false; }
-		virtual std::deque<char> const& getExceptionMessage_() const = 0;
+		virtual bool hasException_(std::deque<char> const**) const { return false; }
 		virtual std::deque<char> const& getName_() const = 0;
 	}; //class Notification
 
@@ -304,11 +300,9 @@ namespace UT_NAMESPACE {
 			SuiteNotification(std::deque<char> const& name, bool start) : suiteName_(name), start_(start) {}
 		private:
 			std::deque<char> suiteName_;
-			std::deque<char> exceptionMessage_;
 			bool start_;
 			Type getType_() const override { return start_ ? SuiteStarted : SuiteFinished; }
 			virtual std::deque<char> const& getName_() const override { return suiteName_; }
-			virtual std::deque<char> const& getExceptionMessage_() const override { return exceptionMessage_; }
 		}; //class SuiteNotification
 
 		class TestNotification : public Notification {
@@ -320,8 +314,12 @@ namespace UT_NAMESPACE {
 			bool thrown_;
 			std::deque<char> exceptionMessage_;
 			Type getType_() const override { return type_; }
-			bool hasException_() const override { return thrown_; }
-			std::deque<char> const& getExceptionMessage_() const override { return exceptionMessage_; }
+			bool hasException_(std::deque<char> const** ppMessage) const override {
+				if (thrown_) {
+					*ppMessage = &exceptionMessage_;
+				}
+				return thrown_;
+			}
 			std::deque<char> const& getName_() const override { return testName_; }
 		}; //class TestNotification
 

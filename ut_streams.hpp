@@ -47,11 +47,11 @@ namespace UT_NAMESPACE {
 				}
 				case Notification::TestFinished: {
 					os_ << " - finished";
-					if (n->hasException()) {
+					std::deque<char> const* pMessage;
+					if (n->hasException(&pMessage)) {
 						os_ << " (thrown expected";
 						os_ << " \"";
-						std::deque<char> const& message = n->exceptionMessage();
-						std::copy(std::begin(message), std::end(message), std::ostream_iterator<char>(os_));
+						std::copy(std::begin(*pMessage), std::end(*pMessage), std::ostream_iterator<char>(os_));
 						os_ << "\"";
 						os_ << ")";
 					}
@@ -60,11 +60,11 @@ namespace UT_NAMESPACE {
 				}
 				case Notification::TestAborted: {
 					os_ << " - aborted";
-					if (n->hasException()) {
+					std::deque<char> const* pMessage;
+					if (n->hasException(&pMessage)) {
 						os_ << " (thrown unexpected";
 						os_ << " \"";
-						std::deque<char> const& message = n->exceptionMessage();
-						std::copy(std::begin(message), std::end(message), std::ostream_iterator<char>(os_));
+						std::copy(std::begin(*pMessage), std::end(*pMessage), std::ostream_iterator<char>(os_));
 						os_ << "\"";
 						os_ << ")";
 					}
