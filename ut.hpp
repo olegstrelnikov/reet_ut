@@ -91,17 +91,23 @@ namespace UT_NAMESPACE {
 	}; //class Notification
 
 	class Collector {
+	private:
+		typedef std::deque<std::unique_ptr<Notification>> ContainerT;
 	public:
 		virtual ~Collector() {}
 		void notify(std::unique_ptr<Notification>&& n) {
 			notify_(std::move(n));
 		}
+		template<typename NotificationHandler> void forEach(NotificationHandler handler) const {
+			std::for_each(std::begin(n_), std::end(n_), handler);
+		}
+		ContainerT::size_type size() const { return n_.size(); }
 	protected:
 		virtual void notify_(std::unique_ptr<Notification>&& n) {
 			n_.push_back(std::move(n));
 		}
 	private:
-		std::deque<std::unique_ptr<Notification>> n_;
+		ContainerT n_;
 	};
 
 	class ReportLine {
