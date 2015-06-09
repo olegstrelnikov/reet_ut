@@ -9,9 +9,9 @@
 #define UT_HPP_
 
 #include <deque>
-#include <algorithm>
-#include <memory>
-#include <iterator>
+#include <algorithm> //copy
+#include <memory> //unique_ptr
+#include <iterator> //back_inserter
 
 #define UT_ASSERT(assertion) runner_->Assert(#assertion, (assertion), __FILE__, __func__, __LINE__)
 
@@ -90,8 +90,8 @@ namespace UT_NAMESPACE {
 	private:
 		virtual Type getType_() const = 0;
 		virtual bool hasException_() const { return false; }
-		virtual std::deque<char> const& getExceptionMessage_() const;
-		virtual std::deque<char> const& getName_() const;
+		virtual std::deque<char> const& getExceptionMessage_() const = 0;
+		virtual std::deque<char> const& getName_() const = 0;
 	}; //class Notification
 
 	class Collector {
@@ -304,9 +304,11 @@ namespace UT_NAMESPACE {
 			SuiteNotification(std::deque<char> const& name, bool start) : suiteName_(name), start_(start) {}
 		private:
 			std::deque<char> suiteName_;
+			std::deque<char> exceptionMessage_;
 			bool start_;
 			Type getType_() const override { return start_ ? SuiteStarted : SuiteFinished; }
 			virtual std::deque<char> const& getName_() const override { return suiteName_; }
+			virtual std::deque<char> const& getExceptionMessage_() const override { return exceptionMessage_; }
 		}; //class SuiteNotification
 
 		class TestNotification : public Notification {
@@ -333,7 +335,7 @@ namespace UT_NAMESPACE {
 				try {
 					throw;
 				} catch (std::exception& e) {
-					copyz(e.what(), test.thrownMessage_);
+					copyz(e.what(), std::back_inserter(test.thrownMessage_));
 				} catch (...) {
 				}
 			}
@@ -348,7 +350,7 @@ namespace UT_NAMESPACE {
 				try {
 					throw;
 				} catch (std::exception& e) {
-					copyz(e.what(), test.thrownMessage_);
+					copyz(e.what(), std::back_inserter(test.thrownMessage_));
 				} catch (...) {
 				}
 			} catch (...) {
@@ -356,7 +358,7 @@ namespace UT_NAMESPACE {
 				try {
 					throw;
 				} catch (std::exception& e) {
-					copyz(e.what(), test.thrownMessage_);
+					copyz(e.what(), std::back_inserter(test.thrownMessage_));
 				} catch (...) {
 				}
 			}
