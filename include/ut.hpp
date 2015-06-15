@@ -166,11 +166,10 @@ namespace UT_NAMESPACE {
 		void addTest(typename Test<SuiteT>::type test, const char* name) {
 			tests_.emplace_back(test, name, &Runner::call_);
 		}
-		template<typename Exception>void addTestThrowing(typename Test<SuiteT>::type test, const char* name) {
-			std::deque<char> className;
-			//getNameOf<Exception>(std::back_inserter(className));
-			tests_.emplace_back(test, name, &Runner::expect_<Exception>, className);
+		template<typename Exception, bool known=TypeListManager::hasName<Exception>()> void addTestThrowing(typename Test<SuiteT>::type test, const char* name) {
+			return TestAdder<Exception, known>(test, name);
 		}
+
 		void run() {
 			collector_.notify(std::move(std::unique_ptr<SuiteNotification>(new SuiteNotification(suiteName_, true))));
 			for (TestRun& test : tests_) {
@@ -201,7 +200,7 @@ namespace UT_NAMESPACE {
 				try {
 					throw;
 				} catch (typename EH::Exception& e) {
-					if (hasName<EH::Exception>()) {
+					if (TypeListManager::hasName<EH::Exception>()) {
 						getNameOf<EH::Exception>(classOut);
 					}
 					EH::Message(e, out);
@@ -239,10 +238,6 @@ namespace UT_NAMESPACE {
 
 		template<typename T, typename Out> void getNameOf(Out o) {
 			return TypeListManager::getNameOf<T>(exceptions_, o);
-		}
-
-		template<typename T> static bool hasName() {
-			return TypeListManager::hasName<T>();
 		}
 
 		class TypeListManager {
@@ -309,6 +304,19 @@ namespace UT_NAMESPACE {
 			};
 		}; //class TypeListManager
 
+		template<typename Exception, bool known> class TestAdder {
+			static void addTestThrowing(typename Test<SuiteT>::type test, const char* name) {
+				tests_.emplace_back(test, name, &Runner::expect_<Exception>, "");
+			}
+		};
+		template<typename Exception> class TestAdder<Exception, true> {
+			void addTestThrowing(typename Test<SuiteT>::type test, const char* name) {
+				std::deque<char> className;
+				getNameOf<Exception>(std::back_inserter(className));
+				tests_.emplace_back(test, name, &Runner::expect_<Exception>, className);
+			}
+		};
+
 		class TestRun {
 		public:
 			typedef void (Runner::*caller)(TestRun&);
@@ -316,9 +324,9 @@ namespace UT_NAMESPACE {
 				: state_(NotStarted), test_(test), caller_(call) {
 				copyz(name, std::back_inserter(name_));
 			};
-			TestRun(typename Test<SuiteT>::type test, const char* name, caller call, std::deque<char> const& expected)
+			template<typename StringT> TestRun(typename Test<SuiteT>::type test, const char* name, caller call, StringT const& expected)
 				: TestRun(test, name, call) {
-				std::copy(expected.begin(), expected.end(), back_inserter(expected_));
+				std::copy(std::begin(expected), std::end(expected), back_inserter(expected_));
 			};
 			enum {NotStarted, Running, NothingThrownAsExpected, CaughtExpected, CaughtUnexpected, NotThrownButExpected} state_;
 			typename Test<SuiteT>::type test_;
