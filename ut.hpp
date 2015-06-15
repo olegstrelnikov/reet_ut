@@ -12,6 +12,7 @@
 #include <algorithm> //copy
 #include <memory> //unique_ptr
 #include <iterator> //back_inserter
+#include <functional> //mem_fn
 
 #define UT_ASSERT(assertion) runner_->Assert(#assertion, (assertion), __FILE__, __func__, __LINE__)
 
@@ -56,6 +57,7 @@ namespace UT_NAMESPACE {
 		}
 	} //copyz()
 
+#if 0
 	class Where {
 	public:
 		Where(const char* file, const char* function, unsigned line, const char* initialFunction)
@@ -70,6 +72,7 @@ namespace UT_NAMESPACE {
 		unsigned line_;
 		std::deque<char> testName_;
 	};
+#endif
 
 	class Notification {
 	public:
@@ -110,6 +113,7 @@ namespace UT_NAMESPACE {
 		ContainerT n_;
 	};
 
+#if 0
 	class ReportLine {
 	public:
 		enum What {Ok, Fail, AnotherExceptionExpected, NotThrown};
@@ -117,24 +121,22 @@ namespace UT_NAMESPACE {
 		What what_;
 		Where where_;
 	};
+#endif
 
+#if 0
 	template<typename Serializer>
 	class ExceptionHandler {
 	public:
 		typedef typename Serializer::Exception Exception;
 		template<typename Out> inline static void Serialize(Exception const& e, Out out) { Serializer::what(e, out); }
 	};
+#endif
 
 	template<typename E> class What {
 	public:
 		typedef E Exception;
-		template<typename Out> static void what(Exception const& e, Out o) {
+		template<typename Out> static void Message(Exception const& e, Out o) {
 			copyz(e.what(), o);
-		}
-		template<typename ClassOut> static void getClass(ClassOut o) {
-#define UT_CLASS_NAME(className) #className
-			copyz(UT_CLASS_NAME(E), o);
-#undef UT_CLASS_NAME
 		}
 	};
 
@@ -165,7 +167,9 @@ namespace UT_NAMESPACE {
 			tests_.emplace_back(test, name, &Runner::call_);
 		}
 		template<typename Exception>void addTestThrowing(typename Test<SuiteT>::type test, const char* name) {
-			tests_.emplace_back(test, name, &Runner::expect_<Exception>);
+			std::deque<char> className;
+			//getNameOf<Exception>(std::back_inserter(className));
+			tests_.emplace_back(test, name, &Runner::expect_<Exception>, className);
 		}
 		void run() {
 			collector_.notify(std::move(std::unique_ptr<SuiteNotification>(new SuiteNotification(suiteName_, true))));
@@ -178,7 +182,7 @@ namespace UT_NAMESPACE {
 		}
 	private:
 
-		enum ExceptionHandlerResult {NothingThrown, ThrownKnown, ThrownUnknown};
+		enum ExceptionHandlerResult {NothingThrown, ThrownKnown, ThrownUnknown, ThrownKnownExpected, ThrownUnknownExpected};
 
 		template<typename... EHs> class Catch {
 		public:
@@ -197,21 +201,48 @@ namespace UT_NAMESPACE {
 				try {
 					throw;
 				} catch (typename EH::Exception& e) {
-					EH::Serialize(e, out);
+					if (hasName<EH::Exception>()) {
+						getNameOf<EH::Exception>(classOut);
+					}
+					EH::Message(e, out);
 					return ThrownKnown;
 				} catch (...) {
-					return Catch<EHs...>::whatWasThrown(out);
+					return Catch<EHs...>::whatWasThrown(out, classOut);
 				}
 			}
 		};
 
-		template<typename FN, typename Out, typename ClassOut, typename... EHs> ExceptionHandlerResult whatThrowns(FN fn, Out out, ClassOut classOut) {
+		template<typename FN, typename Out, typename ClassOut, typename... EHs> ExceptionHandlerResult whatThrows(FN fn, Out out, ClassOut classOut) {
 			try {
 				fn();
 				return NothingThrown;
 			} catch (...) {
 				return Catch<EHs...>::whatWasThrown(out, classOut);
 			}
+		}
+
+		template<typename E, typename FN, typename Out, typename ClassOut, typename... EHs> ExceptionHandlerResult whetherThrows(FN fn, Out out, ClassOut classOut) {
+			try {
+				fn();
+				return NothingThrown;
+			} catch (...) {
+				ExceptionHandlerResult r = Catch<EHs...>::whatWasThrown(out, classOut);
+				try {
+					throw;
+				} catch (E&) {
+					return ThrownKnown == r ? ThrownKnownExpected : ThrownUnknownExpected;
+				} catch (...) {
+					return r;
+				}
+			}
+		}
+
+		template<typename T, typename Out> void getNameOf(Out o) {
+			return TypeListManager::getNameOf<T>(exceptions_, o);
+		}
+
+		template<typename T> static bool hasName() {
+			return TypeListManager::hasName<T>();
 		}
 
 		class TypeListManager {
@@ -285,11 +316,16 @@ namespace UT_NAMESPACE {
 				: state_(NotStarted), test_(test), caller_(call) {
 				copyz(name, std::back_inserter(name_));
 			};
+			TestRun(typename Test<SuiteT>::type test, const char* name, caller call, std::deque<char> const& expected)
+				: TestRun(test, name, call) {
+				std::copy(expected.begin(), expected.end(), back_inserter(expected_));
+			};
 			enum {NotStarted, Running, NothingThrownAsExpected, CaughtExpected, CaughtUnexpected, NotThrownButExpected} state_;
 			typename Test<SuiteT>::type test_;
 			std::deque<char> name_;
 			caller caller_;
 			std::deque<char> thrownMessage_;
+			std::deque<char> expected_;
 			bool isFinished() const {
 				return NothingThrownAsExpected == state_ || CaughtExpected == state_;
 			}
@@ -330,40 +366,38 @@ namespace UT_NAMESPACE {
 		}; //class TestNotification
 
 		void call_(TestRun& test) {
-			try {
-				test.state_ = TestRun::Running;
-				(suite_.*(test.test_))();
+			test.state_ = TestRun::Running;
+			std::deque<char> className, classValue;
+			ExceptionHandlerResult r = whatThrows(std::bind(test.test_, suite_), std::back_inserter(classValue), std::back_inserter(className));
+			if (NothingThrown == r) {
 				test.state_ = TestRun::NothingThrownAsExpected;
-			} catch (...) {
+			} else {
 				test.state_ = TestRun::CaughtUnexpected;
-				try {
-					throw;
-				} catch (std::exception& e) {
-					copyz(e.what(), std::back_inserter(test.thrownMessage_));
-				} catch (...) {
+				if (ThrownKnown == r) {
+					std::copy(className.begin(), className.end(), std::back_inserter(test.thrownMessage_));
+					test.thrownMessage_.push_back('(');
+					std::copy(classValue.begin(), classValue.end(), std::back_inserter(test.thrownMessage_));
+					test.thrownMessage_.push_back(')');
 				}
 			}
 		} //call_()
 		template<typename Exception> void expect_(TestRun& test) {
-			try {
-				test.state_ = TestRun::Running;
-				(suite_.*(test.test_))();
+			test.state_ = TestRun::Running;
+			std::deque<char> className, classValue;
+			ExceptionHandlerResult r = whetherThrows<Exception>(std::bind(test.test_, suite_), std::back_inserter(classValue), std::back_inserter(className));
+			if (NothingThrown == r) {
 				test.state_ = TestRun::NotThrownButExpected;
-			} catch (Exception&) {
-				test.state_ = TestRun::CaughtExpected;
-				try {
-					throw;
-				} catch (std::exception& e) {
-					copyz(e.what(), std::back_inserter(test.thrownMessage_));
-				} catch (...) {
+			} else {
+				if (ThrownKnownExpected == r || ThrownUnknownExpected == r) {
+					test.state_ = TestRun::CaughtExpected;
+				} else {
+					test.state_ = TestRun::CaughtUnexpected;
 				}
-			} catch (...) {
-				test.state_ = TestRun::CaughtUnexpected;
-				try {
-					throw;
-				} catch (std::exception& e) {
-					copyz(e.what(), std::back_inserter(test.thrownMessage_));
-				} catch (...) {
+				if (ThrownKnownExpected == r || ThrownKnown == r) {
+					std::copy(className.begin(), className.end(), std::back_inserter(test.thrownMessage_));
+					test.thrownMessage_.push_back('(');
+					std::copy(classValue.begin(), classValue.end(), std::back_inserter(test.thrownMessage_));
+					test.thrownMessage_.push_back(')');
 				}
 			}
 		} //expect_()
