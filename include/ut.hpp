@@ -81,8 +81,8 @@ namespace UT_NAMESPACE {
 		Type type() const {
 			return getType_();
 		}
-		bool hasException(std::deque<char> const** ppMessage) const {
-			return hasException_(ppMessage);
+		bool hasException(std::deque<char> const** ppExceptionClass, std::deque<char> const** ppMessage) const {
+			return hasException_(ppExceptionClass, ppMessage);
 		}
 		bool expectedException(std::deque<char> const** ppExceptionClass) {
 			return expectedException_(ppExceptionClass);
@@ -92,7 +92,7 @@ namespace UT_NAMESPACE {
 		}
 	private:
 		virtual Type getType_() const = 0;
-		virtual bool hasException_(std::deque<char> const**) const { return false; }
+		virtual bool hasException_(std::deque<char> const** ppExceptionClass, std::deque<char> const**) const { return false; }
 		virtual bool expectedException_(std::deque<char> const**) const { return false; }
 		virtual std::deque<char> const& getName_() const = 0;
 	}; //class Notification
