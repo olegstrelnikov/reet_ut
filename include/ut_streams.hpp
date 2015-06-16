@@ -42,6 +42,12 @@ namespace UT_NAMESPACE {
 				case Notification::TestStarted: {
 					std::deque<char> const& name = n->getName();
 					std::copy(std::begin(name), std::end(name), std::ostream_iterator<char>(os_));
+					std::deque<char> const* pClass;
+					if (n->expectedException(&pClass)) {
+						os_ << " (expect<";
+						std::copy(std::begin(*pClass), std::end(*pClass), std::ostream_iterator<char>(os_));
+						os_ << ">)";
+					}
 					os_ << ": ";
 					break;
 				}
@@ -49,7 +55,7 @@ namespace UT_NAMESPACE {
 					os_ << " - finished";
 					std::deque<char> const* pMessage;
 					if (n->hasException(&pMessage)) {
-						os_ << " (thrown expected";
+						os_ << " (expected";
 						os_ << " \"";
 						std::copy(std::begin(*pMessage), std::end(*pMessage), std::ostream_iterator<char>(os_));
 						os_ << "\"";
@@ -62,7 +68,7 @@ namespace UT_NAMESPACE {
 					os_ << " - aborted";
 					std::deque<char> const* pMessage;
 					if (n->hasException(&pMessage)) {
-						os_ << " (thrown unexpected";
+						os_ << " (unexpected";
 						os_ << " \"";
 						std::copy(std::begin(*pMessage), std::end(*pMessage), std::ostream_iterator<char>(os_));
 						os_ << "\"";

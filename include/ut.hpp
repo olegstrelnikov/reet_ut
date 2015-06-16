@@ -57,11 +57,6 @@ namespace UT_NAMESPACE {
 		}
 	} //copyz()
 
-	template<std::size_t N> const char* end(const char (&stringLiteral)[N]) {
-		static_assert(N > 0, "String literal must me more than zero in size");
-		return stringLiteral + N - 1;
-	}
-
 #if 0
 	class Where {
 	public:
@@ -89,12 +84,16 @@ namespace UT_NAMESPACE {
 		bool hasException(std::deque<char> const** ppMessage) const {
 			return hasException_(ppMessage);
 		}
+		bool expectedException(std::deque<char> const** ppExceptionClass) {
+			return expectedException_(ppExceptionClass);
+		}
 		std::deque<char> const& getName() const {
 			return getName_();
 		}
 	private:
 		virtual Type getType_() const = 0;
 		virtual bool hasException_(std::deque<char> const**) const { return false; }
+		virtual bool expectedException_(std::deque<char> const**) const { return false; }
 		virtual std::deque<char> const& getName_() const = 0;
 	}; //class Notification
 
@@ -312,26 +311,28 @@ namespace UT_NAMESPACE {
 			return TypeListManager::getNameOf<T>(exceptions_, o);
 		}
 
+		class UnknownException {};
+
 		class TestRun {
 		public:
 			typedef void (Runner::*caller)(TestRun&);
-			TestRun(typename Test<SuiteT>::type test, const char* name, caller call)
-				: state_(NotStarted), test_(test), caller_(call) {
+			TestRun(typename Test<SuiteT>::type test, const char* name, caller call, bool expecting = false)
+				: state_(NotStarted), test_(test), caller_(call), expecting_(expecting) {
 				copyz(name, std::back_inserter(name_));
 			};
-			TestRun(typename Test<SuiteT>::type test, const char* name, caller call, std::deque<char> const& expected)
-				: TestRun(test, name, call) {
-				std::copy(std::begin(expected), std::end(expected), back_inserter(expected_));
+			TestRun(typename Test<SuiteT>::type test, const char* name, caller call, UnknownException)
+				: TestRun(test, name, call, true) {
 			};
-			template<std::size_t N> TestRun(typename Test<SuiteT>::type test, const char* name, caller call, char const (&expected)[N])
-				: TestRun(test, name, call) {
-				std::copy(expected, end(expected), back_inserter(expected_));
+			TestRun(typename Test<SuiteT>::type test, const char* name, caller call, std::deque<char> const& expected)
+				: TestRun(test, name, call, 0) {
+				std::copy(std::begin(expected), std::end(expected), back_inserter(expected_));
 			};
 			enum {NotStarted, Running, NothingThrownAsExpected, CaughtExpected, CaughtUnexpected, NotThrownButExpected} state_;
 			typename Test<SuiteT>::type test_;
 			std::deque<char> name_;
 			caller caller_;
 			std::deque<char> thrownMessage_;
+			bool const expecting_;
 			std::deque<char> expected_;
 			bool isFinished() const {
 				return NothingThrownAsExpected == state_ || CaughtExpected == state_;
@@ -346,7 +347,7 @@ namespace UT_NAMESPACE {
 
 		template<typename Exception, bool known> struct TestAdder {
 			static void addTestThrowing(std::deque<TestRun>& tests, typename Test<SuiteT>::type test, const char* name) {
-				tests.emplace_back(test, name, &Runner::expect_<Exception>, "");
+				tests.emplace_back(test, name, &Runner::expect_<Exception>, UnknownException());
 			}
 		};
 		template<typename Exception> struct TestAdder<Exception, true> {
@@ -369,18 +370,28 @@ namespace UT_NAMESPACE {
 
 		class TestNotification : public Notification {
 		public:
-			TestNotification(std::deque<char> const& name, TestRun const& r) : testName_(name), type_(r.notification()), thrown_(r.thrown()), exceptionMessage_(r.thrownMessage_) {}
+			TestNotification(std::deque<char> const& name, TestRun const& r)
+				: testName_(name), type_(r.notification()), thrown_(r.thrown()), exceptionMessage_(r.thrownMessage_),
+				  expected_(r.expecting_), expectedClass_(r.expected_) {}
 		private:
-			std::deque<char> testName_;
-			Type type_;
-			bool thrown_;
-			std::deque<char> exceptionMessage_;
+			std::deque<char> const testName_;
+			Type const type_;
+			bool const thrown_;
+			std::deque<char> const exceptionMessage_;
+			bool const expected_;
+			std::deque<char> const expectedClass_;
 			Type getType_() const override { return type_; }
 			bool hasException_(std::deque<char> const** ppMessage) const override {
 				if (thrown_) {
 					*ppMessage = &exceptionMessage_;
 				}
 				return thrown_;
+			}
+			bool expectedException_(std::deque<char> const** ppExceptionClass) const override {
+				if (expected_) {
+					*ppExceptionClass = &expectedClass_;
+				}
+				return expected_;
 			}
 			std::deque<char> const& getName_() const override { return testName_; }
 		}; //class TestNotification
