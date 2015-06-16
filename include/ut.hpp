@@ -57,6 +57,11 @@ namespace UT_NAMESPACE {
 		}
 	} //copyz()
 
+	template<std::size_t N> const char* end(const char (&stringLiteral)[N]) {
+		static_assert(N > 0, "String literal must me more than zero in size");
+		return stringLiteral + N - 1;
+	}
+
 #if 0
 	class Where {
 	public:
@@ -166,8 +171,75 @@ namespace UT_NAMESPACE {
 		void addTest(typename Test<SuiteT>::type test, const char* name) {
 			tests_.emplace_back(test, name, &Runner::call_);
 		}
+
+	private:
+		class TypeListManager {
+		public:
+			template<typename... Strings> static void storeNamesTo(std::deque<char> names[], Strings... strings) {
+				name_<EHVocabulary...>::store(names, strings...);
+			}
+			template<typename T, typename Out> static void getNameOf(std::deque<char> names[], Out o) {
+				std::deque<char>& s = names[indexOf_<T>()];
+				std::copy(s.begin(), s.end(), o);
+			}
+			template<typename T> static constexpr bool hasName() {
+				return index_<T, EHVocabulary...>::has();
+			}
+
+		private:
+			template<typename ...> struct index_ {
+				static constexpr bool has() {
+					return false;
+				}
+			};
+
+			template<typename T1, typename T2, typename... TT> struct index_<T1, T2, TT...> {
+				static constexpr std::size_t get() {
+					return index_<T1, TT...>::get();
+				}
+				static constexpr bool has() {
+					return index_<T1, TT...>::has();
+				}
+			};
+
+			template<typename T, typename... TT> struct index_<T, T, TT...> {
+				static constexpr std::size_t get() {
+					return 1 + sizeof... (TT);
+				}
+				static constexpr bool has() {
+					return true;
+				}
+			};
+
+			template<typename T> static constexpr std::size_t indexOf_() {
+				return index_<T, EHVocabulary...>::get();
+			}
+
+			template<typename... TT> class name_ {
+			public:
+				static void store(std::deque<char> []) {
+				}
+			};
+
+			template<typename T> class name_<T> {
+			public:
+				static void store(std::deque<char> names[], const char* s) {
+					copyz(s, std::back_inserter(names[indexOf_<T>()]));
+				}
+			};
+
+			template<typename T, typename... TT> class name_<T, TT...> {
+			public:
+				template<typename... Strings> static void store(std::deque<char> names[], const char* s, Strings... strings) {
+					name_<T>::store(names, s);
+					name_<TT...>::store(names, strings...);
+				}
+			};
+		}; //class TypeListManager
+
+	public:
 		template<typename Exception, bool known=TypeListManager::hasName<Exception>()> void addTestThrowing(typename Test<SuiteT>::type test, const char* name) {
-			return TestAdder<Exception, known>(test, name);
+			return TestAdder<Exception, known>::addTestThrowing(tests_, test, name);
 		}
 
 		void run() {
@@ -240,83 +312,6 @@ namespace UT_NAMESPACE {
 			return TypeListManager::getNameOf<T>(exceptions_, o);
 		}
 
-		class TypeListManager {
-		public:
-			template<typename... Strings> static void storeNamesTo(std::deque<char> names[], Strings... strings) {
-				name_<EHVocabulary...>::store(names, strings...);
-			}
-			template<typename T, typename Out> static void getNameOf(std::deque<char> names[], Out o) {
-				std::deque<char>& s = names[indexOf_<T>()];
-				std::copy(s.begin(), s.end(), o);
-			}
-			template<typename T> static bool hasName() {
-				return index_<T, EHVocabulary...>::has();
-			}
-
-		private:
-			template<typename ...> struct index_ {
-				static constexpr bool has() {
-					return false;
-				}
-			};
-
-			template<typename T1, typename T2, typename... TT> struct index_<T1, T2, TT...> {
-				static constexpr std::size_t get() {
-					return index_<T1, TT...>::get();
-				}
-				static constexpr bool has() {
-					return index_<T1, TT...>::has();
-				}
-			};
-
-			template<typename T, typename... TT> struct index_<T, T, TT...> {
-				static constexpr std::size_t get() {
-					return 1 + sizeof... (TT);
-				}
-				static constexpr bool has() {
-					return true;
-				}
-			};
-
-			template<typename T> static constexpr std::size_t indexOf_() {
-				return index_<T, EHVocabulary...>::get();
-			}
-
-			template<typename... TT> class name_ {
-			public:
-				static void store(std::deque<char> []) {
-				}
-			};
-
-			template<typename T> class name_<T> {
-			public:
-				static void store(std::deque<char> names[], const char* s) {
-					copyz(s, std::back_inserter(names[indexOf_<T>()]));
-				}
-			};
-
-			template<typename T, typename... TT> class name_<T, TT...> {
-			public:
-				template<typename... Strings> static void store(std::deque<char> names[], const char* s, Strings... strings) {
-					name_<T>::store(names, s);
-					name_<TT...>::store(names, strings...);
-				}
-			};
-		}; //class TypeListManager
-
-		template<typename Exception, bool known> class TestAdder {
-			static void addTestThrowing(typename Test<SuiteT>::type test, const char* name) {
-				tests_.emplace_back(test, name, &Runner::expect_<Exception>, "");
-			}
-		};
-		template<typename Exception> class TestAdder<Exception, true> {
-			void addTestThrowing(typename Test<SuiteT>::type test, const char* name) {
-				std::deque<char> className;
-				getNameOf<Exception>(std::back_inserter(className));
-				tests_.emplace_back(test, name, &Runner::expect_<Exception>, className);
-			}
-		};
-
 		class TestRun {
 		public:
 			typedef void (Runner::*caller)(TestRun&);
@@ -324,9 +319,13 @@ namespace UT_NAMESPACE {
 				: state_(NotStarted), test_(test), caller_(call) {
 				copyz(name, std::back_inserter(name_));
 			};
-			template<typename StringT> TestRun(typename Test<SuiteT>::type test, const char* name, caller call, StringT const& expected)
+			TestRun(typename Test<SuiteT>::type test, const char* name, caller call, std::deque<char> const& expected)
 				: TestRun(test, name, call) {
 				std::copy(std::begin(expected), std::end(expected), back_inserter(expected_));
+			};
+			template<std::size_t N> TestRun(typename Test<SuiteT>::type test, const char* name, caller call, char const (&expected)[N])
+				: TestRun(test, name, call) {
+				std::copy(expected, end(expected), back_inserter(expected_));
 			};
 			enum {NotStarted, Running, NothingThrownAsExpected, CaughtExpected, CaughtUnexpected, NotThrownButExpected} state_;
 			typename Test<SuiteT>::type test_;
@@ -344,6 +343,19 @@ namespace UT_NAMESPACE {
 				return NotStarted == state_ ? Notification::TestStarted : isFinished() ? Notification::TestFinished : Notification::TestAborted;
 			}
 		}; //class TestRun
+
+		template<typename Exception, bool known> struct TestAdder {
+			static void addTestThrowing(std::deque<TestRun>& tests, typename Test<SuiteT>::type test, const char* name) {
+				tests.emplace_back(test, name, &Runner::expect_<Exception>, "");
+			}
+		};
+		template<typename Exception> struct TestAdder<Exception, true> {
+			void addTestThrowing(std::deque<TestRun>& tests, typename Test<SuiteT>::type test, const char* name) {
+				std::deque<char> className;
+				getNameOf<Exception>(std::back_inserter(className));
+				tests.emplace_back(test, name, &Runner::expect_<Exception>, className);
+			}
+		};
 
 		class SuiteNotification : public Notification {
 		public:
