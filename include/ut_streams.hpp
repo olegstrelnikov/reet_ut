@@ -105,7 +105,7 @@ namespace UT_NAMESPACE {
 
 		}
 		void testsSummary_() {
-
+			os_ << "Tests started: " << getTestsStarted() << ", finished: " << getTestsFinished() << ", aborted: " << getTestsAborted();
 		}
 		void suitesSummary_() {
 			os_ << "Suites started: " << getSuitesStarted() << ", finished: " << getSuitesFinished();
