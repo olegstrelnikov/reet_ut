@@ -9,10 +9,10 @@
 #define UT_HPP_
 
 #include <deque>
-#include <algorithm> //copy
+#include <algorithm> //copy, count_if
 #include <memory> //unique_ptr
 #include <iterator> //back_inserter
-#include <functional> //mem_fn
+#include <functional> //bind
 
 #define UT_ASSERT(assertion) runner_->Assert(#assertion, (assertion), __FILE__, __func__, __LINE__)
 
@@ -120,38 +120,13 @@ namespace UT_NAMESPACE {
 		std::size_t getTestsAborted() const {
 			return std::count_if(std::begin(n_), std::end(n_), [](typename ContainerT::value_type const& n) { return n->type() == Notification::TestAborted; });
 		}
-#if 0
-		template<typename NotificationHandler> void forEach(NotificationHandler handler) const {
-			std::for_each(std::begin(n_), std::end(n_), handler);
-		}
-		ContainerT::size_type size() const { return n_.size(); }
-#endif
 	protected:
 		virtual void notify_(std::unique_ptr<Notification>&& n) {
 			n_.push_back(std::move(n));
 		}
 	private:
 		ContainerT n_;
-	};
-
-#if 0
-	class ReportLine {
-	public:
-		enum What {Ok, Fail, AnotherExceptionExpected, NotThrown};
-	private:
-		What what_;
-		Where where_;
-	};
-#endif
-
-#if 0
-	template<typename Serializer>
-	class ExceptionHandler {
-	public:
-		typedef typename Serializer::Exception Exception;
-		template<typename Out> inline static void Serialize(Exception const& e, Out out) { Serializer::what(e, out); }
-	};
-#endif
+	}; //class Collector
 
 	template<typename E> class What {
 	public:
@@ -159,7 +134,7 @@ namespace UT_NAMESPACE {
 		template<typename Out> static void Message(Exception const& e, Out o) {
 			copyz(e.what(), o);
 		}
-	};
+	}; //class What
 
 	class RunnerBase {
 	public:
@@ -169,11 +144,11 @@ namespace UT_NAMESPACE {
 		}
 	private:
 		virtual void Assert_(const char* expression, bool assertion, const char* file, const char* function, unsigned line) = 0;
-	};
+	}; //class RunnerBase
 
 	template<typename SuiteT> struct Test {
 		typedef void (SuiteT::*type)();
-	};
+	}; //struct Test
 
 	template<typename SuiteT, typename... EHVocabulary> class Runner : public RunnerBase {
 	public:
@@ -202,7 +177,7 @@ namespace UT_NAMESPACE {
 				collector_.notify(std::move(std::unique_ptr<TestNotification>(new TestNotification(currentTest_, test))));
 			}
 			collector_.notify(std::move(std::unique_ptr<SuiteNotification>(new SuiteNotification(suiteName_, false))));
-		}
+		} //Runner<>::run()
 
 	private:
 		class TypeListManager {
@@ -266,7 +241,7 @@ namespace UT_NAMESPACE {
 					name_<TT...>::store(names, strings...);
 				}
 			};
-		}; //class TypeListManager
+		}; //class Runner<>::TypeListManager
 
 		enum ExceptionHandlerResult {NothingThrown, ThrownKnown, ThrownUnknown, ThrownKnownExpected, ThrownUnknownExpected};
 
@@ -287,9 +262,7 @@ namespace UT_NAMESPACE {
 				try {
 					throw;
 				} catch (typename EH::Exception& e) {
-					if (TypeListManager::hasName<typename EH::Exception>()) {
-						runner.getNameOf<typename EH::Exception>(classOut);
-					}
+					runner.getNameOf<typename EH::Exception>(classOut);
 					EH::Message(e, out);
 					return ThrownKnown;
 				} catch (...) {
@@ -321,7 +294,7 @@ namespace UT_NAMESPACE {
 					return r;
 				}
 			}
-		}
+		} //Runner<>::whetherThrows()
 
 		template<typename E, typename Out> void getNameOf(Out o) const {
 			return TypeListManager::getNameOf<E>(exceptions_, o);
