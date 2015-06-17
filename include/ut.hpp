@@ -171,6 +171,22 @@ namespace UT_NAMESPACE {
 			tests_.emplace_back(test, name, &Runner::call_);
 		}
 
+		template<typename Exception> void addTestThrowing(typename Test<SuiteT>::type test, const char* name) {
+			std::deque<char> exceptionClassName;
+			ClassName<Exception>::get(std::back_inserter(exceptionClassName));
+			tests_.emplace_back(test, name, &Runner::expect_<Exception>, exceptionClassName);
+		}
+
+		void run() {
+			collector_.notify(std::move(std::unique_ptr<SuiteNotification>(new SuiteNotification(suiteName_, true))));
+			for (TestRun& test : tests_) {
+				collector_.notify(std::move(std::unique_ptr<TestNotification>(new TestNotification(currentTest_ = test.name_, test))));
+				(this->*(test.caller_))(test);
+				collector_.notify(std::move(std::unique_ptr<TestNotification>(new TestNotification(currentTest_, test))));
+			}
+			collector_.notify(std::move(std::unique_ptr<SuiteNotification>(new SuiteNotification(suiteName_, false))));
+		}
+
 	private:
 		class TypeListManager {
 		public:
@@ -236,22 +252,6 @@ namespace UT_NAMESPACE {
 			};
 		}; //class TypeListManager
 
-	public:
-		template<typename Exception, bool known=TypeListManager::hasName<Exception>()> void addTestThrowing(typename Test<SuiteT>::type test, const char* name) {
-			return TestAdder<Exception, known>::addTestThrowing(tests_, test, name);
-		}
-
-		void run() {
-			collector_.notify(std::move(std::unique_ptr<SuiteNotification>(new SuiteNotification(suiteName_, true))));
-			for (TestRun& test : tests_) {
-				collector_.notify(std::move(std::unique_ptr<TestNotification>(new TestNotification(currentTest_ = test.name_, test))));
-				(this->*(test.caller_))(test);
-				collector_.notify(std::move(std::unique_ptr<TestNotification>(new TestNotification(currentTest_, test))));
-			}
-			collector_.notify(std::move(std::unique_ptr<SuiteNotification>(new SuiteNotification(suiteName_, false))));
-		}
-	private:
-
 		enum ExceptionHandlerResult {NothingThrown, ThrownKnown, ThrownUnknown, ThrownKnownExpected, ThrownUnknownExpected};
 
 		template<typename... EHs> class Catch {
@@ -307,11 +307,21 @@ namespace UT_NAMESPACE {
 			}
 		}
 
-		template<typename T, typename Out> void getNameOf(Out o) {
-			return TypeListManager::getNameOf<T>(exceptions_, o);
+		template<typename E, typename Out> void getNameOf(Out o) {
+			return TypeListManager::getNameOf<E>(exceptions_, o);
 		}
 
-		class UnknownException {};
+		template<typename E, bool known=TypeListManager::hasName<E>()> class ClassName {
+		public:
+			template<typename Out> static void get(Out o) {
+				getNameOf<E>(o);
+			}
+		};
+
+		template<typename E> class ClassName<E, false> {
+		public:
+			template<typename Out> static void get(Out) {}
+		};
 
 		class TestRun {
 		public:
@@ -320,11 +330,8 @@ namespace UT_NAMESPACE {
 				: state_(NotStarted), test_(test), caller_(call), expecting_(expecting) {
 				copyz(name, std::back_inserter(name_));
 			};
-			TestRun(typename Test<SuiteT>::type test, const char* name, caller call, UnknownException)
-				: TestRun(test, name, call, true) {
-			};
 			TestRun(typename Test<SuiteT>::type test, const char* name, caller call, std::deque<char> const& expected)
-				: TestRun(test, name, call, 0) {
+				: TestRun(test, name, call, true) {
 				std::copy(std::begin(expected), std::end(expected), back_inserter(expected_));
 			};
 			enum {NotStarted, Running, NothingThrownAsExpected, CaughtExpected, CaughtUnexpected, NotThrownButExpected} state_;
@@ -344,19 +351,6 @@ namespace UT_NAMESPACE {
 				return NotStarted == state_ ? Notification::TestStarted : isFinished() ? Notification::TestFinished : Notification::TestAborted;
 			}
 		}; //class TestRun
-
-		template<typename Exception, bool known> struct TestAdder {
-			static void addTestThrowing(std::deque<TestRun>& tests, typename Test<SuiteT>::type test, const char* name) {
-				tests.emplace_back(test, name, &Runner::expect_<Exception>, UnknownException());
-			}
-		};
-		template<typename Exception> struct TestAdder<Exception, true> {
-			void addTestThrowing(std::deque<TestRun>& tests, typename Test<SuiteT>::type test, const char* name) {
-				std::deque<char> className;
-				getNameOf<Exception>(std::back_inserter(className));
-				tests.emplace_back(test, name, &Runner::expect_<Exception>, className);
-			}
-		};
 
 		class SuiteNotification : public Notification {
 		public:
@@ -381,7 +375,7 @@ namespace UT_NAMESPACE {
 			bool const expected_;
 			std::deque<char> const expectedClass_;
 			Type getType_() const override { return type_; }
-			bool hasException_(std::deque<char> const** ppMessage) const override {
+			bool hasException_(std::deque<char> const** ppClass, std::deque<char> const** ppMessage) const override {
 				if (thrown_) {
 					*ppMessage = &exceptionMessage_;
 				}
