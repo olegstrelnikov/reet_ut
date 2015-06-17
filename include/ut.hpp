@@ -272,7 +272,7 @@ namespace UT_NAMESPACE {
 
 		template<typename... EHs> class Catch {
 		public:
-			template<typename Out, typename ClassOut> static ExceptionHandlerResult whatWasThrown(Out, ClassOut) {
+			template<typename Out, typename ClassOut> static ExceptionHandlerResult whatWasThrown(Out, ClassOut, Runner const&) {
 				try {
 					throw;
 				} catch (...) {
@@ -293,7 +293,7 @@ namespace UT_NAMESPACE {
 					EH::Message(e, out);
 					return ThrownKnown;
 				} catch (...) {
-					return Catch<EHs...>::whatWasThrown(out, classOut);
+					return Catch<EHs...>::whatWasThrown(out, classOut, runner);
 				}
 			}
 		};
@@ -436,10 +436,8 @@ namespace UT_NAMESPACE {
 					test.state_ = TestRun::CaughtUnexpected;
 				}
 				if (ThrownKnownExpected == r || ThrownKnown == r) {
-					std::copy(className.begin(), className.end(), std::back_inserter(test.thrownMessage_));
-					test.thrownMessage_.push_back('(');
+					std::copy(className.begin(), className.end(), std::back_inserter(test.thrownClass_));
 					std::copy(classValue.begin(), classValue.end(), std::back_inserter(test.thrownMessage_));
-					test.thrownMessage_.push_back(')');
 				}
 			}
 		} //expect_()
