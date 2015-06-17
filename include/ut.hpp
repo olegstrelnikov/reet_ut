@@ -105,10 +105,18 @@ namespace UT_NAMESPACE {
 		void notify(std::unique_ptr<Notification>&& n) {
 			notify_(std::move(n));
 		}
+		std::size_t getSuitesStarted() const {
+			return std::count_if(std::begin(n_), std::end(n_), [](typename ContainerT::value_type const& n) { return n->type() == Notification::SuiteStarted; });
+		}
+		std::size_t getSuitesFinished() const {
+			return std::count_if(std::begin(n_), std::end(n_), [](typename ContainerT::value_type const& n) { return n->type() == Notification::SuiteFinished; });
+		}
+#if 0
 		template<typename NotificationHandler> void forEach(NotificationHandler handler) const {
 			std::for_each(std::begin(n_), std::end(n_), handler);
 		}
 		ContainerT::size_type size() const { return n_.size(); }
+#endif
 	protected:
 		virtual void notify_(std::unique_ptr<Notification>&& n) {
 			n_.push_back(std::move(n));
