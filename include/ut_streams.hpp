@@ -75,7 +75,7 @@ namespace UT_NAMESPACE {
 					std::deque<char> const* pClass;
 					std::deque<char> const* pMessage;
 					if (n->hasException(&pClass, &pMessage)) {
-						os_ << " (expected";
+						os_ << " (unexpected";
 						os_ << "<";
 						std::copy(std::begin(*pClass), std::end(*pClass), std::ostream_iterator<char>(os_));
 						os_ << ">";
