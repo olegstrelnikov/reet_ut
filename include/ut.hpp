@@ -111,6 +111,15 @@ namespace UT_NAMESPACE {
 		std::size_t getSuitesFinished() const {
 			return std::count_if(std::begin(n_), std::end(n_), [](typename ContainerT::value_type const& n) { return n->type() == Notification::SuiteFinished; });
 		}
+		std::size_t getTestsStarted() const {
+			return std::count_if(std::begin(n_), std::end(n_), [](typename ContainerT::value_type const& n) { return n->type() == Notification::TestStarted; });
+		}
+		std::size_t getTestsFinished() const {
+			return std::count_if(std::begin(n_), std::end(n_), [](typename ContainerT::value_type const& n) { return n->type() == Notification::TestFinished; });
+		}
+		std::size_t getTestsAborted() const {
+			return std::count_if(std::begin(n_), std::end(n_), [](typename ContainerT::value_type const& n) { return n->type() == Notification::TestAborted; });
+		}
 #if 0
 		template<typename NotificationHandler> void forEach(NotificationHandler handler) const {
 			std::for_each(std::begin(n_), std::end(n_), handler);
