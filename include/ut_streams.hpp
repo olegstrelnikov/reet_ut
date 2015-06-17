@@ -21,6 +21,7 @@ namespace UT_NAMESPACE {
 	class StreamsCollector : public Collector {
 	public:
 		StreamsCollector(std::ostream& os = std::cout) : os_(os) {}
+		~StreamsCollector() { report_(); }
 	private:
 		void notify_(std::unique_ptr<Notification>&& n) override {
 			switch (n->type()) {
@@ -107,7 +108,7 @@ namespace UT_NAMESPACE {
 
 		}
 		void suitesSummary_() {
-
+			os_ << "Suites started: " << getSuitesStarted() << ", finished: " << getSuitesFinished();
 		}
 		void report_() {
 			listOfFailures_();
@@ -115,6 +116,7 @@ namespace UT_NAMESPACE {
 			testsSummary_();
 			os_ << "\n";
 			suitesSummary_();
+			os_ << "\n";
 		}
 		std::ostream& os_;
 	};
