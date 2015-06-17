@@ -210,8 +210,8 @@ namespace UT_NAMESPACE {
 			template<typename... Strings> static void storeNamesTo(std::deque<char> names[], Strings... strings) {
 				name_<EHVocabulary...>::store(names, strings...);
 			}
-			template<typename T, typename Out> static void getNameOf(std::deque<char> names[], Out o) {
-				std::deque<char>& s = names[indexOf_<T>()];
+			template<typename T, typename Out> static void getNameOf(std::deque<char> const names[], Out o) {
+				std::deque<char> const& s = names[indexOf_<T>()];
 				std::copy(s.begin(), s.end(), o);
 			}
 			template<typename T> static constexpr bool hasName() {
@@ -283,12 +283,12 @@ namespace UT_NAMESPACE {
 
 		template<typename EH, typename... EHs> class Catch<EH, EHs...> {
 		public:
-			template<typename Out, typename ClassOut> static ExceptionHandlerResult whatWasThrown(Out out, ClassOut classOut) {
+			template<typename Out, typename ClassOut> static ExceptionHandlerResult whatWasThrown(Out out, ClassOut classOut, Runner const& runner) {
 				try {
 					throw;
 				} catch (typename EH::Exception& e) {
-					if (TypeListManager::hasName<EH::Exception>()) {
-						getNameOf<EH::Exception>(classOut);
+					if (TypeListManager::hasName<typename EH::Exception>()) {
+						runner.getNameOf<typename EH::Exception>(classOut);
 					}
 					EH::Message(e, out);
 					return ThrownKnown;
@@ -298,21 +298,21 @@ namespace UT_NAMESPACE {
 			}
 		};
 
-		template<typename FN, typename Out, typename ClassOut, typename... EHs> ExceptionHandlerResult whatThrows(FN fn, Out out, ClassOut classOut) {
+		template<typename FN, typename Out, typename ClassOut> ExceptionHandlerResult whatThrows(FN fn, Out out, ClassOut classOut) {
 			try {
 				fn();
 				return NothingThrown;
 			} catch (...) {
-				return Catch<EHs...>::whatWasThrown(out, classOut);
+				return Catch<EHVocabulary...>::whatWasThrown(out, classOut, *this);
 			}
 		}
 
-		template<typename E, typename FN, typename Out, typename ClassOut, typename... EHs> ExceptionHandlerResult whetherThrows(FN fn, Out out, ClassOut classOut) {
+		template<typename E, typename FN, typename Out, typename ClassOut> ExceptionHandlerResult whetherThrows(FN fn, Out out, ClassOut classOut) {
 			try {
 				fn();
 				return NothingThrown;
 			} catch (...) {
-				ExceptionHandlerResult r = Catch<EHs...>::whatWasThrown(out, classOut);
+				ExceptionHandlerResult r = Catch<EHVocabulary...>::whatWasThrown(out, classOut, *this);
 				try {
 					throw;
 				} catch (E&) {
@@ -323,13 +323,13 @@ namespace UT_NAMESPACE {
 			}
 		}
 
-		template<typename E, typename Out> void getNameOf(Out o) {
+		template<typename E, typename Out> void getNameOf(Out o) const {
 			return TypeListManager::getNameOf<E>(exceptions_, o);
 		}
 
 		template<typename E, bool known> class ClassName {
 		public:
-			template<typename Out> static void get(Runner& runner, Out o) {
+			template<typename Out> static void get(Runner const& runner, Out o) {
 				runner.getNameOf<E>(o);
 			}
 		};
