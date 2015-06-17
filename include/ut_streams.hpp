@@ -53,12 +53,18 @@ namespace UT_NAMESPACE {
 				}
 				case Notification::TestFinished: {
 					os_ << " - finished";
+					std::deque<char> const* pClass;
 					std::deque<char> const* pMessage;
-					if (n->hasException(&pMessage)) {
+					if (n->hasException(&pClass, &pMessage)) {
 						os_ << " (expected";
-						os_ << " \"";
-						std::copy(std::begin(*pMessage), std::end(*pMessage), std::ostream_iterator<char>(os_));
-						os_ << "\"";
+						os_ << "<";
+						std::copy(std::begin(*pClass), std::end(*pClass), std::ostream_iterator<char>(os_));
+						os_ << ">";
+						if (!pMessage->empty()) {
+							os_ << "(";
+							std::copy(std::begin(*pMessage), std::end(*pMessage), std::ostream_iterator<char>(os_));
+							os_ << ")";
+						}
 						os_ << ")";
 					}
 					os_ << "\n";
@@ -66,12 +72,18 @@ namespace UT_NAMESPACE {
 				}
 				case Notification::TestAborted: {
 					os_ << " - aborted";
+					std::deque<char> const* pClass;
 					std::deque<char> const* pMessage;
-					if (n->hasException(&pMessage)) {
-						os_ << " (unexpected";
-						os_ << " \"";
-						std::copy(std::begin(*pMessage), std::end(*pMessage), std::ostream_iterator<char>(os_));
-						os_ << "\"";
+					if (n->hasException(&pClass, &pMessage)) {
+						os_ << " (expected";
+						os_ << "<";
+						std::copy(std::begin(*pClass), std::end(*pClass), std::ostream_iterator<char>(os_));
+						os_ << ">";
+						if (!pMessage->empty()) {
+							os_ << "(";
+							std::copy(std::begin(*pMessage), std::end(*pMessage), std::ostream_iterator<char>(os_));
+							os_ << ")";
+						}
 						os_ << ")";
 					}
 					os_ << "\n";
