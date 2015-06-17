@@ -173,7 +173,7 @@ namespace UT_NAMESPACE {
 
 		template<typename Exception> void addTestThrowing(typename Test<SuiteT>::type test, const char* name) {
 			std::deque<char> exceptionClassName;
-			ClassName<Exception>::get(std::back_inserter(exceptionClassName));
+			ClassName<Exception, TypeListManager::hasName<Exception>()>::get(*this, std::back_inserter(exceptionClassName));
 			tests_.emplace_back(test, name, &Runner::expect_<Exception>, exceptionClassName);
 		}
 
@@ -217,7 +217,7 @@ namespace UT_NAMESPACE {
 				}
 			};
 
-			template<typename T, typename... TT> struct index_<T, T, TT...> {
+			template<typename EH, typename... TT> struct index_<typename EH::Exception, EH, TT...> {
 				static constexpr std::size_t get() {
 					return 1 + sizeof... (TT);
 				}
@@ -232,21 +232,20 @@ namespace UT_NAMESPACE {
 
 			template<typename... TT> class name_ {
 			public:
-				static void store(std::deque<char> []) {
-				}
+				static void store(std::deque<char> []) {} //implementation for Runner without vocabulary
 			};
 
-			template<typename T> class name_<T> {
+			template<typename EH> class name_<EH> {
 			public:
 				static void store(std::deque<char> names[], const char* s) {
-					copyz(s, std::back_inserter(names[indexOf_<T>()]));
+					copyz(s, std::back_inserter(names[indexOf_<typename EH::Exception>()]));
 				}
 			};
 
-			template<typename T, typename... TT> class name_<T, TT...> {
+			template<typename EH, typename... TT> class name_<EH, TT...> {
 			public:
 				template<typename... Strings> static void store(std::deque<char> names[], const char* s, Strings... strings) {
-					name_<T>::store(names, s);
+					name_<EH>::store(names, s);
 					name_<TT...>::store(names, strings...);
 				}
 			};
@@ -311,16 +310,16 @@ namespace UT_NAMESPACE {
 			return TypeListManager::getNameOf<E>(exceptions_, o);
 		}
 
-		template<typename E, bool known=TypeListManager::hasName<E>()> class ClassName {
+		template<typename E, bool known> class ClassName {
 		public:
-			template<typename Out> static void get(Out o) {
-				getNameOf<E>(o);
+			template<typename Out> static void get(Runner& runner, Out o) {
+				runner.getNameOf<E>(o);
 			}
 		};
 
 		template<typename E> class ClassName<E, false> {
 		public:
-			template<typename Out> static void get(Out) {}
+			template<typename Out> static void get(Runner&, Out) {}
 		};
 
 		class TestRun {
