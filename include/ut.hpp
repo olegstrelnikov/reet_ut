@@ -339,6 +339,7 @@ namespace UT_NAMESPACE {
 			std::deque<char> name_;
 			caller caller_;
 			std::deque<char> thrownMessage_;
+			std::deque<char> thrownClass_;
 			bool const expecting_;
 			std::deque<char> expected_;
 			bool isFinished() const {
@@ -366,7 +367,7 @@ namespace UT_NAMESPACE {
 		public:
 			TestNotification(std::deque<char> const& name, TestRun const& r)
 				: testName_(name), type_(r.notification()), thrown_(r.thrown()), exceptionMessage_(r.thrownMessage_),
-				  expected_(r.expecting_), expectedClass_(r.expected_) {}
+				  expected_(r.expecting_), expectedClass_(r.expected_), thrownClass_(r.thrownClass_) {}
 		private:
 			std::deque<char> const testName_;
 			Type const type_;
@@ -374,10 +375,12 @@ namespace UT_NAMESPACE {
 			std::deque<char> const exceptionMessage_;
 			bool const expected_;
 			std::deque<char> const expectedClass_;
+			std::deque<char> const thrownClass_;
 			Type getType_() const override { return type_; }
 			bool hasException_(std::deque<char> const** ppClass, std::deque<char> const** ppMessage) const override {
 				if (thrown_) {
 					*ppMessage = &exceptionMessage_;
+					*ppClass = &thrownClass_;
 				}
 				return thrown_;
 			}
@@ -399,10 +402,8 @@ namespace UT_NAMESPACE {
 			} else {
 				test.state_ = TestRun::CaughtUnexpected;
 				if (ThrownKnown == r) {
-					std::copy(className.begin(), className.end(), std::back_inserter(test.thrownMessage_));
-					test.thrownMessage_.push_back('(');
+					std::copy(className.begin(), className.end(), std::back_inserter(test.thrownClass_));
 					std::copy(classValue.begin(), classValue.end(), std::back_inserter(test.thrownMessage_));
-					test.thrownMessage_.push_back(')');
 				}
 			}
 		} //call_()
