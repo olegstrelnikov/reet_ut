@@ -26,18 +26,15 @@
 	} catch (...) {\
 		try {\
 			throw;\
-		} catch {std::exception& e} {\
-			ThrownUnexpectedStdException(#exceptionClass, typeid((exceptionClass)), e, __FILE__, __func__, __LINE__);\
 		} catch (...) {\
 			ThrownUnknown(#exceptionClass, typeid((exceptionClass)), __FILE__, __func__, __LINE__);\
 		}\
 	}
-#define UT_ASSERT_NOTHING_THROWN NothingThrown(__FILE__, __func__, __LINE__);\
+
+#define UT_ASSERT_NOTHING_THROWN \
 	catch (...) {\
 		try {\
 			throw;\
-		} catch {std::exception& e} {\
-			ThrownUnexpectedStdException(e, __FILE__, __func__, __LINE__);\
 		} catch (...) {\
 			ThrownUnknown(__FILE__, __func__, __LINE__);\
 		}\
@@ -57,44 +54,72 @@ namespace UT_NAMESPACE {
 		}
 	} //copyz()
 
-#if 0
-	class Where {
-	public:
-		Where(const char* file, const char* function, unsigned line, const char* initialFunction)
-			: line_(line) {
-			copyz(file, std::back_inserter(file_));
-			copyz(function, std::back_inserter(function_));
-			copyz(initialFunction, std::back_inserter(testName_));
-		};
-	private:
-		std::deque<char> file_;
-		std::deque<char> function_;
-		unsigned line_;
-		std::deque<char> testName_;
-	};
-#endif
-
 	class Notification {
 	public:
-		enum Type {SuiteStarted, SuiteFinished, TestStarted, TestFinished, TestAborted, AssertionSucceeded, AssertionFailed};
+		enum Type {SuiteStarted, SuiteFinished, TestStarted, TestFinished, Assertion};
+		enum TypeResult {Succeeded, Failed};
+		enum AssertionType {Assert, AssertEquals, AssertNotEquals, AssertThrown, AssertThrownNothing};
+
+		class Where {
+		public:
+			Where(const char* file, const char* function, unsigned line)
+				: line_(line) {
+				copyz(file, std::back_inserter(file_));
+				copyz(function, std::back_inserter(function_));
+			};
+			std::deque<char> const& getFile() const {
+				return file_;
+			}
+			std::deque<char> const& getFunction() const {
+				return function_;
+			}
+			unsigned getLine() const {
+				return line_;
+			}
+		private:
+			std::deque<char> file_;
+			std::deque<char> function_;
+			unsigned line_;
+		}; //class Notification::Where
+
 		virtual ~Notification() {};
+		Notification const& parent() const {
+			return parent_();
+		}
 		Type type() const {
 			return getType_();
 		}
-		bool hasException(std::deque<char> const** ppExceptionClass, std::deque<char> const** ppMessage) const {
-			return hasException_(ppExceptionClass, ppMessage);
+		TypeResult result() const {
+			return getResult_();
+		}
+		void assertionType(AssertionType* p) const {
+			return getAssertionType_(p);
+		}
+		void where(Where const** ppWhere) const {
+			return where_(ppWhere);
+		}
+		std::deque<char> const& getExpected() const {
+			return getExpected_();
+		}
+		void getActual(std::deque<char> const** pp) const {
+			return getActual_(pp);
+		}
+		bool thrownException(std::deque<char> const** ppExceptionClass, std::deque<char> const** ppMessage) const {
+			return thrownException_(ppExceptionClass, ppMessage);
 		}
 		bool expectedException(std::deque<char> const** ppExceptionClass) {
 			return expectedException_(ppExceptionClass);
 		}
-		std::deque<char> const& getName() const {
-			return getName_();
-		}
 	private:
+		virtual Notification const& parent_() const = 0;
 		virtual Type getType_() const = 0;
-		virtual bool hasException_(std::deque<char> const** ppExceptionClass, std::deque<char> const**) const { return false; }
+		virtual TypeResult getResult_() const = 0;
+		virtual void getAssertionType_(AssertionType*) const {  }
+		virtual void where_(Where const**) const { }
+		virtual std::deque<char> const& getExpected_() const = 0;
+		virtual void getActual_(std::deque<char> const**) const { }
+		virtual bool thrownException_(std::deque<char> const** ppExceptionClass, std::deque<char> const**) const { return false; }
 		virtual bool expectedException_(std::deque<char> const**) const { return false; }
-		virtual std::deque<char> const& getName_() const = 0;
 	}; //class Notification
 
 	class Collector {
@@ -349,7 +374,7 @@ namespace UT_NAMESPACE {
 			std::deque<char> suiteName_;
 			bool start_;
 			Type getType_() const override { return start_ ? SuiteStarted : SuiteFinished; }
-			virtual std::deque<char> const& getName_() const override { return suiteName_; }
+			virtual std::deque<char> const& getExpected_() const override { return suiteName_; }
 		}; //class SuiteNotification
 
 		class TestNotification : public Notification {
@@ -366,7 +391,7 @@ namespace UT_NAMESPACE {
 			std::deque<char> const expectedClass_;
 			std::deque<char> const thrownClass_;
 			Type getType_() const override { return type_; }
-			bool hasException_(std::deque<char> const** ppClass, std::deque<char> const** ppMessage) const override {
+			bool thrownException_(std::deque<char> const** ppClass, std::deque<char> const** ppMessage) const override {
 				if (thrown_) {
 					*ppMessage = &exceptionMessage_;
 					*ppClass = &thrownClass_;
@@ -379,7 +404,7 @@ namespace UT_NAMESPACE {
 				}
 				return expected_;
 			}
-			std::deque<char> const& getName_() const override { return testName_; }
+			std::deque<char> const& getExpected_() const override { return testName_; }
 		}; //class TestNotification
 
 		void call_(TestRun& test) {
@@ -445,7 +470,7 @@ namespace UT_NAMESPACE {
 		}
 	protected:
 		Suite() : runner_(nullptr) {}
-	private:
+	protected:
 		RunnerBase* runner_;
 	}; //class Suite
 

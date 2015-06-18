@@ -27,21 +27,21 @@ namespace UT_NAMESPACE {
 			switch (n->type()) {
 				case Notification::SuiteStarted: {
 					os_ << "Suite ";
-					std::deque<char> const& name = n->getName();
+					std::deque<char> const& name = n->getExpected();
 					std::copy(std::begin(name), std::end(name), std::ostream_iterator<char>(os_));
 					os_ << " started\n";
 					break;
 				}
 				case Notification::SuiteFinished: {
 					os_ << "Suite ";
-					std::deque<char> const& name = n->getName();
+					std::deque<char> const& name = n->getExpected();
 					std::copy(std::begin(name), std::end(name), std::ostream_iterator<char>(os_));
 					os_ << " finished\n";
 					os_ << "\n";
 					break;
 				}
 				case Notification::TestStarted: {
-					std::deque<char> const& name = n->getName();
+					std::deque<char> const& name = n->getExpected();
 					std::copy(std::begin(name), std::end(name), std::ostream_iterator<char>(os_));
 					std::deque<char> const* pClass;
 					if (n->expectedException(&pClass)) {
@@ -56,7 +56,7 @@ namespace UT_NAMESPACE {
 					os_ << " - finished";
 					std::deque<char> const* pClass;
 					std::deque<char> const* pMessage;
-					if (n->hasException(&pClass, &pMessage)) {
+					if (n->thrownException(&pClass, &pMessage)) {
 						os_ << " (expected";
 						os_ << "<";
 						std::copy(std::begin(*pClass), std::end(*pClass), std::ostream_iterator<char>(os_));
@@ -75,7 +75,7 @@ namespace UT_NAMESPACE {
 					os_ << " - aborted";
 					std::deque<char> const* pClass;
 					std::deque<char> const* pMessage;
-					if (n->hasException(&pClass, &pMessage)) {
+					if (n->thrownException(&pClass, &pMessage)) {
 						os_ << " (unexpected";
 						os_ << "<";
 						std::copy(std::begin(*pClass), std::end(*pClass), std::ostream_iterator<char>(os_));
