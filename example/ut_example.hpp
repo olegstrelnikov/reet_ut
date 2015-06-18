@@ -12,9 +12,8 @@
 #include <ut_streams.hpp>
 #include <ut_stream_handler.hpp>
 
-class ExceptionsSuite : public ut::Suite {
+class InitialSuite : public ut::Suite {
 public:
-	void testNothing() {}
 
 	void testEquality()
 	{
@@ -27,6 +26,18 @@ public:
 	    delete n;
 #endif
 	}
+
+	inline static void run(ut::Collector& collector) {
+		ut::Runner<InitialSuite> runner(collector, "InitialSuite");
+		runner.addTest(&InitialSuite::testEquality, "testEquality");
+		runner.run();
+	}
+
+}; //class InitialSuite
+
+class ExceptionsSuite : public ut::Suite {
+public:
+	void testNothing() {}
 
 	void testException() {
 		class T1 { public: virtual ~T1() {} };
@@ -51,16 +62,16 @@ public:
 		runner.addTest(&ExceptionsSuite::testException, "testException 5");
 		runner.addTestThrowing<std::bad_alloc>(&ExceptionsSuite::testIntException, "testIntException");
 		runner.addTestThrowing<int>(&ExceptionsSuite::testIntException, "testIntException 2");
-		runner.addTest(&ExceptionsSuite::testEquality, "testEquality");
 		runner.run();
 	}
 
-}; //class InitialSuite
+}; //class ExceptionsSuite
 
 class Example {
 public:
 	static void run() {
 		ut::StreamsCollector collector;
+		InitialSuite::run(collector);
 		ExceptionsSuite::run(collector);
 	}
 };
