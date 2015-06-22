@@ -84,7 +84,7 @@ namespace UT_NAMESPACE {
 
 		virtual ~Notification() {};
 		Notification const& parent() const {
-			return parent_();
+			return getParent_();
 		}
 		Type type() const {
 			return getType_();
@@ -107,14 +107,14 @@ namespace UT_NAMESPACE {
 		bool thrownException(std::deque<char> const** ppExceptionClass, std::deque<char> const** ppMessage) const {
 			return thrownException_(ppExceptionClass, ppMessage);
 		}
-		bool expectedException(std::deque<char> const** ppExceptionClass) {
+		bool expectedException(std::deque<char> const** ppExceptionClass) const {
 			return expectedException_(ppExceptionClass);
 		}
 	private:
-		virtual Notification const& parent_() const = 0;
+		virtual Notification const& getParent_() const = 0;
 		virtual Type getType_() const = 0;
 		virtual TypeResult getResult_() const = 0;
-		virtual void getAssertionType_(AssertionType*) const {  }
+		virtual void getAssertionType_(AssertionType*) const { }
 		virtual void where_(Where const**) const { }
 		virtual std::deque<char> const& getExpected_() const = 0;
 		virtual void getActual_(std::deque<char> const**) const { }
@@ -124,10 +124,10 @@ namespace UT_NAMESPACE {
 
 	class Collector {
 	private:
-		typedef std::deque<std::unique_ptr<Notification>> ContainerT;
+		typedef std::deque<std::unique_ptr<Notification const>> ContainerT;
 	public:
 		virtual ~Collector() {}
-		void notify(std::unique_ptr<Notification>&& n) {
+		void notify(std::unique_ptr<Notification const>&& n) {
 			notify_(std::move(n));
 		}
 		std::size_t getSuitesStarted() const {
@@ -140,13 +140,13 @@ namespace UT_NAMESPACE {
 			return std::count_if(std::begin(n_), std::end(n_), [](typename ContainerT::value_type const& n) { return n->type() == Notification::TestStarted; });
 		}
 		std::size_t getTestsFinished() const {
-			return std::count_if(std::begin(n_), std::end(n_), [](typename ContainerT::value_type const& n) { return n->type() == Notification::TestFinished; });
+			return std::count_if(std::begin(n_), std::end(n_), [](typename ContainerT::value_type const& n) { return n->type() == Notification::TestFinished && n->result() == Notification::Succeeded; });
 		}
 		std::size_t getTestsAborted() const {
-			return std::count_if(std::begin(n_), std::end(n_), [](typename ContainerT::value_type const& n) { return n->type() == Notification::TestAborted; });
+			return std::count_if(std::begin(n_), std::end(n_), [](typename ContainerT::value_type const& n) { return n->type() == Notification::TestFinished && n->result() == Notification::Failed; });
 		}
 	protected:
-		virtual void notify_(std::unique_ptr<Notification>&& n) {
+		virtual void notify_(std::unique_ptr<Notification const>&& n) {
 			n_.push_back(std::move(n));
 		}
 	private:
@@ -195,13 +195,15 @@ namespace UT_NAMESPACE {
 		}
 
 		void run() {
-			collector_.notify(std::move(std::unique_ptr<SuiteNotification>(new SuiteNotification(suiteName_, true))));
+			SuiteNotification const& n = *new SuiteNotification(suiteName_, Notification::SuiteStarted);
+			collector_.notify(std::move(std::unique_ptr<SuiteNotification const>(&n)));
 			for (TestRun& test : tests_) {
-				collector_.notify(std::move(std::unique_ptr<TestNotification>(new TestNotification(currentTest_ = test.name_, test))));
+				currentTest_ = test.name_; //todo:
+				collector_.notify(std::move(std::unique_ptr<TestNotification const>(new TestNotification(test, n))));
 				(this->*(test.caller_))(test);
-				collector_.notify(std::move(std::unique_ptr<TestNotification>(new TestNotification(currentTest_, test))));
+				collector_.notify(std::move(std::unique_ptr<TestNotification const>(new TestNotification(test, n))));
 			}
-			collector_.notify(std::move(std::unique_ptr<SuiteNotification>(new SuiteNotification(suiteName_, false))));
+			collector_.notify(std::move(std::unique_ptr<SuiteNotification const>(new SuiteNotification(suiteName_, Notification::SuiteFinished, n))));
 		} //Runner<>::run()
 
 	private:
@@ -363,48 +365,56 @@ namespace UT_NAMESPACE {
 				return CaughtExpected == state_ || CaughtUnexpected == state_;
 			}
 			Notification::Type notification() const {
-				return NotStarted == state_ ? Notification::TestStarted : isFinished() ? Notification::TestFinished : Notification::TestAborted;
+				return NotStarted == state_ ? Notification::TestStarted : Notification::TestFinished;
+			}
+			Notification::TypeResult result() const {
+				return isFinished() ? Notification::Succeeded : Notification::Failed;
 			}
 		}; //class TestRun
 
 		class SuiteNotification : public Notification {
 		public:
-			SuiteNotification(std::deque<char> const& name, bool start) : suiteName_(name), start_(start) {}
+			SuiteNotification(std::deque<char> const& name, Notification::Type type, Notification const& parent)
+				: suiteName_(name), type_(type), parent_(parent) {}
+			SuiteNotification(std::deque<char> const& name, Notification::Type type)
+				: SuiteNotification(name, type, *this) {}
 		private:
 			std::deque<char> suiteName_;
-			bool start_;
-			Type getType_() const override { return start_ ? SuiteStarted : SuiteFinished; }
+			Notification::Type type_;
+			Notification const& parent_;
+			virtual Notification const& getParent_() const override { return parent_; }
+			Type getType_() const override { return type_; }
+			virtual TypeResult getResult_() const override { return Notification::Succeeded; }
 			virtual std::deque<char> const& getExpected_() const override { return suiteName_; }
 		}; //class SuiteNotification
 
 		class TestNotification : public Notification {
 		public:
-			TestNotification(std::deque<char> const& name, TestRun const& r)
-				: testName_(name), type_(r.notification()), thrown_(r.thrown()), exceptionMessage_(r.thrownMessage_),
-				  expected_(r.expecting_), expectedClass_(r.expected_), thrownClass_(r.thrownClass_) {}
+			TestNotification(TestRun const& r, Notification const& parent)
+				: run_(r), type_(r.notification()), result_(r.result()), thrown_(r.thrown()), parent_(parent)  {}
 		private:
-			std::deque<char> const testName_;
+			TestRun const& run_;
 			Type const type_;
+			TypeResult const result_;
 			bool const thrown_;
-			std::deque<char> const exceptionMessage_;
-			bool const expected_;
-			std::deque<char> const expectedClass_;
-			std::deque<char> const thrownClass_;
+			Notification const& parent_;
+			virtual Notification const& getParent_() const override { return parent_; }
 			Type getType_() const override { return type_; }
+			virtual TypeResult getResult_() const override { return result_; }
 			bool thrownException_(std::deque<char> const** ppClass, std::deque<char> const** ppMessage) const override {
 				if (thrown_) {
-					*ppMessage = &exceptionMessage_;
-					*ppClass = &thrownClass_;
+					*ppMessage = &run_.thrownMessage_;
+					*ppClass = &run_.thrownClass_;
 				}
 				return thrown_;
 			}
 			bool expectedException_(std::deque<char> const** ppExceptionClass) const override {
-				if (expected_) {
-					*ppExceptionClass = &expectedClass_;
+				if (run_.expecting_) {
+					*ppExceptionClass = &run_.expected_;
 				}
-				return expected_;
+				return run_.expecting_;
 			}
-			std::deque<char> const& getExpected_() const override { return testName_; }
+			std::deque<char> const& getExpected_() const override { return run_.name_; }
 		}; //class TestNotification
 
 		void call_(TestRun& test) {

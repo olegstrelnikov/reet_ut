@@ -23,7 +23,7 @@ namespace UT_NAMESPACE {
 		StreamsCollector(std::ostream& os = std::cout) : os_(os) {}
 		~StreamsCollector() { report_(); }
 	private:
-		void notify_(std::unique_ptr<Notification>&& n) override {
+		void notify_(std::unique_ptr<Notification const>&& n) override {
 			switch (n->type()) {
 				case Notification::SuiteStarted: {
 					os_ << "Suite ";
@@ -53,11 +53,11 @@ namespace UT_NAMESPACE {
 					break;
 				}
 				case Notification::TestFinished: {
-					os_ << " - finished";
+					os_ << " - " << (n->result() == Notification::Succeeded ? "finished" : "aborted");
 					std::deque<char> const* pClass;
 					std::deque<char> const* pMessage;
 					if (n->thrownException(&pClass, &pMessage)) {
-						os_ << " (expected";
+						os_ << " (" << (n->result() == Notification::Succeeded ? "expected" : "unexpected");
 						os_ << "<";
 						std::copy(std::begin(*pClass), std::end(*pClass), std::ostream_iterator<char>(os_));
 						os_ << ">";
@@ -71,31 +71,8 @@ namespace UT_NAMESPACE {
 					os_ << "\n";
 					break;
 				}
-				case Notification::TestAborted: {
-					os_ << " - aborted";
-					std::deque<char> const* pClass;
-					std::deque<char> const* pMessage;
-					if (n->thrownException(&pClass, &pMessage)) {
-						os_ << " (unexpected";
-						os_ << "<";
-						std::copy(std::begin(*pClass), std::end(*pClass), std::ostream_iterator<char>(os_));
-						os_ << ">";
-						if (!pMessage->empty()) {
-							os_ << "(";
-							std::copy(std::begin(*pMessage), std::end(*pMessage), std::ostream_iterator<char>(os_));
-							os_ << ")";
-						}
-						os_ << ")";
-					}
-					os_ << "\n";
-					break;
-				}
-				case Notification::AssertionSucceeded: {
-					os_ << '.';
-					break;
-				}
-				case Notification::AssertionFailed: {
-					os_ << 'F';
+				case Notification::Assertion: {
+					os_ << (n->result() == Notification::Succeeded ?  '.' : 'F');
 					break;
 				}
 			} //switch
