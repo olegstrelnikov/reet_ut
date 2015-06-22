@@ -15,8 +15,15 @@
 class InitialSuite : public ut::Suite {
 public:
 
-	void testEquality()
-	{
+	void testAssertions() {
+		UT_ASSERT(true);
+		UT_ASSERT(false);
+		int const N = 5;
+		UT_ASSERT(N == 5);
+		UT_ASSERT(N != 5);
+	}
+
+	void testEquality() {
 #if 0
 		static const int N = 10;
 		int* n = new int(10);
@@ -29,6 +36,7 @@ public:
 
 	inline static void run(ut::Collector& collector) {
 		ut::Runner<InitialSuite> runner(collector, "InitialSuite");
+		runner.addTest(&InitialSuite::testAssertions, "testAssertions");
 		runner.addTest(&InitialSuite::testEquality, "testEquality");
 		runner.run();
 	}
