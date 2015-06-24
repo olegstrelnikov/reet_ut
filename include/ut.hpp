@@ -370,7 +370,7 @@ namespace UT_NAMESPACE {
 			Notification::TypeResult result() const {
 				return isFinished() ? Notification::Succeeded : Notification::Failed;
 			}
-		}; //class TestRun
+		}; //class Runner<>::TestRun
 
 		class SuiteNotification : public Notification {
 		public:
@@ -386,7 +386,7 @@ namespace UT_NAMESPACE {
 			Type getType_() const override { return type_; }
 			virtual TypeResult getResult_() const override { return Notification::Succeeded; }
 			virtual std::deque<char> const& getExpected_() const override { return suiteName_; }
-		}; //class SuiteNotification
+		}; //class Runner<>::SuiteNotification
 
 		class TestNotification : public Notification {
 		public:
@@ -415,7 +415,7 @@ namespace UT_NAMESPACE {
 				return run_.expecting_;
 			}
 			std::deque<char> const& getExpected_() const override { return run_.name_; }
-		}; //class TestNotification
+		}; //class Runner<>::TestNotification
 
 		void call_(TestRun& test) {
 			test.state_ = TestRun::Running;
@@ -430,7 +430,7 @@ namespace UT_NAMESPACE {
 					std::copy(classValue.begin(), classValue.end(), std::back_inserter(test.thrownMessage_));
 				}
 			}
-		} //call_()
+		} // Runner<>::call_()
 		template<typename Exception> void expect_(TestRun& test) {
 			test.state_ = TestRun::Running;
 			std::deque<char> className, classValue;
@@ -448,7 +448,7 @@ namespace UT_NAMESPACE {
 					std::copy(classValue.begin(), classValue.end(), std::back_inserter(test.thrownMessage_));
 				}
 			}
-		} //expect_()
+		} // Runner<>::expect_()
 		std::deque<char> currentTest_;
 		std::deque<TestRun> tests_;
 		SuiteT suite_;
@@ -468,9 +468,19 @@ namespace UT_NAMESPACE {
 		std::ostream& report_(std::ostream& os) const {
 			return testTotals_(os) << "\n";
 		}
-		virtual void Assert_(const char* expression, bool assertion, const char* file, const char* function, unsigned line) {
 
-		}
+		class Asserton : public Notification {
+
+		}; //Runner<>::Assertion
+
+		virtual void Assert_(const char* expression, bool assertion, const char* file, const char* function, unsigned line) {
+			if (assertion) {
+
+			} else {
+
+			}
+		} //Runner<>::Assert_()
+
 	}; //class Runner
 
 	class Suite {
