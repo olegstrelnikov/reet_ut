@@ -14,7 +14,7 @@
 #include <iterator> //back_inserter
 #include <functional> //bind
 
-#define UT_ASSERT(assertion) runner_->Assert(#assertion, (assertion), __FILE__, __func__, __LINE__)
+#define UT_ASSERT(assertion) Assert(#assertion, (assertion), __FILE__, __func__, __LINE__)
 
 #define UT_ASSERT_EQUAL(expected, actual) AssertEqual(#expected, #actual, (expected), (actual), __FILE__, __func__, __LINE__)
 
@@ -101,8 +101,14 @@ namespace UT_NAMESPACE {
 		std::deque<char> const& getExpected() const {
 			return getExpected_();
 		}
+		void getExpectedValue(std::deque<char> const** pp) const {
+			return getExpectedValue_(pp);
+		}
 		void getActual(std::deque<char> const** pp) const {
 			return getActual_(pp);
+		}
+		void getActualValue(std::deque<char> const** pp) const {
+			return getActualValue_(pp);
 		}
 		bool thrownException(std::deque<char> const** ppExceptionClass, std::deque<char> const** ppMessage) const {
 			return thrownException_(ppExceptionClass, ppMessage);
@@ -117,7 +123,9 @@ namespace UT_NAMESPACE {
 		virtual void getAssertionType_(AssertionType*) const { }
 		virtual void where_(Where const**) const { }
 		virtual std::deque<char> const& getExpected_() const = 0;
+		virtual void getExpectedValue_(std::deque<char> const**) const { }
 		virtual void getActual_(std::deque<char> const**) const { }
+		virtual void getActualValue_(std::deque<char> const**) const { }
 		virtual bool thrownException_(std::deque<char> const** ppExceptionClass, std::deque<char> const**) const { return false; }
 		virtual bool expectedException_(std::deque<char> const**) const { return false; }
 	}; //class Notification
@@ -164,11 +172,11 @@ namespace UT_NAMESPACE {
 	class RunnerBase {
 	public:
 		virtual ~RunnerBase() {}
-		void Assert(const char* expression, bool assertion, const char* file, const char* function, unsigned line) {
-			Assert_(expression, assertion, file, function, line);
+		void notify(std::unique_ptr<Notification const>&& n) {
+			notify_(std::move(n));
 		}
 	private:
-		virtual void Assert_(const char* expression, bool assertion, const char* file, const char* function, unsigned line) = 0;
+		virtual void notify_(std::unique_ptr<Notification const>&& n) = 0;
 	}; //class RunnerBase
 
 	template<typename SuiteT> struct Test {
@@ -462,25 +470,6 @@ namespace UT_NAMESPACE {
 		unsigned getAborted_() const {
 			return 0;
 		}
-		std::ostream& testTotals_(std::ostream& os) const {
-			return os << "Test runs: " << tests_.size() << ", finished: " << getFinished_() << ", aborted: " << getAborted_();
-		}
-		std::ostream& report_(std::ostream& os) const {
-			return testTotals_(os) << "\n";
-		}
-
-		class Asserton : public Notification {
-
-		}; //Runner<>::Assertion
-
-		virtual void Assert_(const char* expression, bool assertion, const char* file, const char* function, unsigned line) {
-			if (assertion) {
-
-			} else {
-
-			}
-		} //Runner<>::Assert_()
-
 	}; //class Runner
 
 	class Suite {
@@ -490,7 +479,35 @@ namespace UT_NAMESPACE {
 		}
 	protected:
 		Suite() : runner_(nullptr) {}
-	protected:
+		void Assert(const char* expression, bool assertion, const char* file, const char* function, unsigned line) {
+			runner_.notify(std::move(std::unuque_ptr<Notification const&&>(new Assertion())));
+			if (assertion) {
+
+			} else {
+
+			}
+		} //Runner<>::Assert_()
+	private:
+		class Assertion : public Notification {
+		public:
+			Assertion(Notification const& parent, Notification::TypeResult result, Notification::AssertionType assertionType)
+				: parent_(parent), result_(result), assertionType_(assertionType) {}
+		private:
+			virtual Notification const& getParent_() const { return parent_; }
+			virtual Type getType_() const { return Notification::Assertion; }
+			virtual TypeResult getResult_() const { return result_; }
+			virtual void getAssertionType_(AssertionType* t) const { *t = assertionType_; }
+			virtual void where_(Where const** w) const { *w = &w_; }
+			virtual std::deque<char> const& getExpected_() const = 0;
+			virtual void getActual_(std::deque<char> const**) const { }
+			virtual bool thrownException_(std::deque<char> const** ppExceptionClass, std::deque<char> const**) const { return false; }
+			virtual bool expectedException_(std::deque<char> const**) const { return false; }
+
+			Notification const& parent_;
+			Notification::TypeResult result_;
+			Notification::AssertionType assertionType_;
+			Notification::Where w_;
+		}; //Suite::Assertion
 		RunnerBase* runner_;
 	}; //class Suite
 
