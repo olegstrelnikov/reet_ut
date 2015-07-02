@@ -78,8 +78,19 @@ namespace UT_NAMESPACE {
 			} //switch
 			Collector::notify_(std::move(n));
 		}
-		void listOfFailures_() {
+		void assertionsSummary_() {
+			os_ << "Assertions: " << getAssertions() << ", succeeded: " << getAssertionsSucceeded() << ", failed: " << getAssertionsFailed();
+		}
 
+		bool listOfFailures_() {
+			bool fails = getAssertionsFailed();
+			if (fails) {
+				os_ << "\nFailed assertions:\n";
+				for (std::size_t i = 0; i < getAssertionsFailed(); ++i) {
+					os_ << (i + 1) << ") " << "\n";
+				}
+			}
+			return fails;
 		}
 		void testsSummary_() {
 			os_ << "Tests started: " << getTestsStarted() << ", finished: " << getTestsFinished() << ", aborted: " << getTestsAborted();
@@ -88,8 +99,11 @@ namespace UT_NAMESPACE {
 			os_ << "Suites started: " << getSuitesStarted() << ", finished: " << getSuitesFinished();
 		}
 		void report_() {
-			listOfFailures_();
+			assertionsSummary_();
 			os_ << "\n";
+			if (listOfFailures_()) {
+				os_ << "\n";
+			}
 			testsSummary_();
 			os_ << "\n";
 			suitesSummary_();

@@ -153,6 +153,15 @@ namespace UT_NAMESPACE {
 		std::size_t getTestsAborted() const {
 			return std::count_if(std::begin(n_), std::end(n_), [](typename ContainerT::value_type const& n) { return n->type() == Notification::TestFinished && n->result() == Notification::Failed; });
 		}
+		std::size_t getAssertions() const {
+			return std::count_if(std::begin(n_), std::end(n_), [](typename ContainerT::value_type const& n) { return n->type() == Notification::Assertion; });
+		}
+		std::size_t getAssertionsSucceeded() const {
+			return std::count_if(std::begin(n_), std::end(n_), [](typename ContainerT::value_type const& n) { return n->type() == Notification::Assertion && n->result() == Notification::Succeeded; });
+		}
+		std::size_t getAssertionsFailed() const {
+			return std::count_if(std::begin(n_), std::end(n_), [](typename ContainerT::value_type const& n) { return n->type() == Notification::Assertion && n->result() == Notification::Failed; });
+		}
 	protected:
 		virtual void notify_(std::unique_ptr<Notification const>&& n) {
 			n_.push_back(std::move(n));
