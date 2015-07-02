@@ -14,7 +14,7 @@
 #include <iterator> //back_inserter
 #include <functional> //bind
 
-#define UT_ASSERT(assertion) Assert(#assertion, (assertion), __FILE__, __func__, __LINE__)
+#define UT_ASSERT(assertion) runner_->Assert(#assertion, (assertion), __FILE__, __func__, __LINE__)
 
 #define UT_ASSERT_EQUAL(expected, actual) AssertEqual(#expected, #actual, (expected), (actual), __FILE__, __func__, __LINE__)
 
@@ -172,11 +172,11 @@ namespace UT_NAMESPACE {
 	class RunnerBase {
 	public:
 		virtual ~RunnerBase() {}
-		void notify(std::unique_ptr<Notification const>&& n) {
-			notify_(std::move(n));
-		}
+		void Assert(const char* expression, bool assertion, const char* file, const char* function, unsigned line) {
+			Assert_(expression, assertion, file, function, line);
+		} //Runner<>::Assert_()
 	private:
-		virtual void notify_(std::unique_ptr<Notification const>&& n) = 0;
+		virtual void Assert_(const char* expression, bool assertion, const char* file, const char* function, unsigned line) = 0;
 	}; //class RunnerBase
 
 	template<typename SuiteT> struct Test {
@@ -206,8 +206,9 @@ namespace UT_NAMESPACE {
 			SuiteNotification const& n = *new SuiteNotification(suiteName_, Notification::SuiteStarted);
 			collector_.notify(std::move(std::unique_ptr<SuiteNotification const>(&n)));
 			for (TestRun& test : tests_) {
-				currentTest_ = test.name_; //todo:
-				collector_.notify(std::move(std::unique_ptr<TestNotification const>(new TestNotification(test, n))));
+				//currentTest_ = test.name_; //todo:
+				currentTestNotification_ = new TestNotification(test, n);
+				collector_.notify(std::move(std::unique_ptr<TestNotification const>(currentTestNotification_)));
 				(this->*(test.caller_))(test);
 				collector_.notify(std::move(std::unique_ptr<TestNotification const>(new TestNotification(test, n))));
 			}
@@ -425,6 +426,26 @@ namespace UT_NAMESPACE {
 			std::deque<char> const& getExpected_() const override { return run_.name_; }
 		}; //class Runner<>::TestNotification
 
+		class Assertion : public Notification {
+		public:
+			Assertion(Notification const& parent, Notification::TypeResult result, const char* file, const char* function, unsigned line, const char* expected)
+				: parent_(parent), result_(result), w_(file, function, line) {
+				copyz(expected, std::back_inserter(expected_));
+			}
+		private:
+			virtual Notification const& getParent_() const { return parent_; }
+			virtual Type getType_() const { return Notification::Assertion; }
+			virtual TypeResult getResult_() const { return result_; }
+			virtual void getAssertionType_(AssertionType* t) const { *t = Notification::Assert; }
+			virtual void where_(Where const** w) const { *w = &w_; }
+			virtual std::deque<char> const& getExpected_() const { return expected_; }
+
+			Notification const& parent_;
+			Notification::TypeResult result_;
+			Notification::Where w_;
+			std::deque<char> expected_;
+		}; //class Runner<>::Assertion
+
 		void call_(TestRun& test) {
 			test.state_ = TestRun::Running;
 			std::deque<char> className, classValue;
@@ -457,20 +478,28 @@ namespace UT_NAMESPACE {
 				}
 			}
 		} // Runner<>::expect_()
-		std::deque<char> currentTest_;
+
+		void Assert_(const char* expression, bool assertion, const char* file, const char* function, unsigned line) override {
+			collector_.notify(std::move(std::unique_ptr<Notification const>(new Assertion(*currentTestNotification_, assertion ? Notification::Succeeded : Notification::Failed, file, function, line, expression))));
+		} //Runner<>::Assert_()
+
+		//std::deque<char> currentTest_;
+		TestNotification const* currentTestNotification_;
 		std::deque<TestRun> tests_;
 		SuiteT suite_;
 		Collector& collector_;
 		std::deque<char> suiteName_;
 		std::deque<char> exceptions_[1 + sizeof... (EHVocabulary)];
 
+#if 0
 		unsigned getFinished_() const {
 			return 0;
 		}
 		unsigned getAborted_() const {
 			return 0;
 		}
-	}; //class Runner
+#endif
+	}; //class Runner<>
 
 	class Suite {
 	public:
@@ -479,35 +508,7 @@ namespace UT_NAMESPACE {
 		}
 	protected:
 		Suite() : runner_(nullptr) {}
-		void Assert(const char* expression, bool assertion, const char* file, const char* function, unsigned line) {
-			runner_.notify(std::move(std::unuque_ptr<Notification const&&>(new Assertion())));
-			if (assertion) {
-
-			} else {
-
-			}
-		} //Runner<>::Assert_()
-	private:
-		class Assertion : public Notification {
-		public:
-			Assertion(Notification const& parent, Notification::TypeResult result, Notification::AssertionType assertionType)
-				: parent_(parent), result_(result), assertionType_(assertionType) {}
-		private:
-			virtual Notification const& getParent_() const { return parent_; }
-			virtual Type getType_() const { return Notification::Assertion; }
-			virtual TypeResult getResult_() const { return result_; }
-			virtual void getAssertionType_(AssertionType* t) const { *t = assertionType_; }
-			virtual void where_(Where const** w) const { *w = &w_; }
-			virtual std::deque<char> const& getExpected_() const = 0;
-			virtual void getActual_(std::deque<char> const**) const { }
-			virtual bool thrownException_(std::deque<char> const** ppExceptionClass, std::deque<char> const**) const { return false; }
-			virtual bool expectedException_(std::deque<char> const**) const { return false; }
-
-			Notification const& parent_;
-			Notification::TypeResult result_;
-			Notification::AssertionType assertionType_;
-			Notification::Where w_;
-		}; //Suite::Assertion
+	protected:
 		RunnerBase* runner_;
 	}; //class Suite
 
