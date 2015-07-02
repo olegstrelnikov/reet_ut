@@ -8,10 +8,7 @@
 #ifndef INCLUDE_UT_STREAM_HANDLER_HPP_
 #define INCLUDE_UT_STREAM_HANDLER_HPP_
 
-#include <string>
-#include <sstream>
-#include <iterator>
-#include <algorithm>
+#include "ut_stream_serializer.hpp"
 
 #ifndef UT_NAMESPACE
 #define UT_NAMESPACE ut
@@ -23,10 +20,7 @@ namespace UT_NAMESPACE {
 	public:
 		typedef E Exception;
 		template<typename Out> static void Message(Exception const& e, Out o) {
-			std::ostringstream oss;
-			oss << e;
-			std::string s = oss.str();
-			std::copy(std::begin(s), std::end(s), o);
+			StreamSerializer::serialize(e, o);
 		}
 	}; //class Stream
 
