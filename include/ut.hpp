@@ -186,7 +186,7 @@ namespace UT_NAMESPACE {
 	template<typename SuiteT, typename... EHVocabulary> class Runner : public RunnerBase {
 	public:
 		template<typename... Strings> Runner(Collector& collector, const char* suiteName, Strings... strings)
-			: suite_(), collector_(collector) {
+			: currentTestNotification_(nullptr), suite_(), collector_(collector) {
 			suite_.setContext(this);
 			copyz(suiteName, std::back_inserter(suiteName_));
 			TypeListManager::storeNamesTo(exceptions_, strings...);
@@ -206,7 +206,6 @@ namespace UT_NAMESPACE {
 			SuiteNotification const& n = *new SuiteNotification(suiteName_, Notification::SuiteStarted);
 			collector_.notify(std::move(std::unique_ptr<SuiteNotification const>(&n)));
 			for (TestRun& test : tests_) {
-				//currentTest_ = test.name_; //todo:
 				currentTestNotification_ = new TestNotification(test, n);
 				collector_.notify(std::move(std::unique_ptr<TestNotification const>(currentTestNotification_)));
 				(this->*(test.caller_))(test);
@@ -483,22 +482,12 @@ namespace UT_NAMESPACE {
 			collector_.notify(std::move(std::unique_ptr<Notification const>(new Assertion(*currentTestNotification_, assertion ? Notification::Succeeded : Notification::Failed, file, function, line, expression))));
 		} //Runner<>::Assert_()
 
-		//std::deque<char> currentTest_;
 		TestNotification const* currentTestNotification_;
 		std::deque<TestRun> tests_;
 		SuiteT suite_;
 		Collector& collector_;
 		std::deque<char> suiteName_;
 		std::deque<char> exceptions_[1 + sizeof... (EHVocabulary)];
-
-#if 0
-		unsigned getFinished_() const {
-			return 0;
-		}
-		unsigned getAborted_() const {
-			return 0;
-		}
-#endif
 	}; //class Runner<>
 
 	class Suite {
