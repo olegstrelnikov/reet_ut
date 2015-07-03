@@ -130,6 +130,35 @@ namespace UT_NAMESPACE {
 		virtual bool expectedException_(std::deque<char> const**) const { return false; }
 	}; //class Notification
 
+	Notification const& getSuiteNotification(Notification const& n) {
+		switch (n.type()) {
+		case Notification::SuiteStarted: {
+			return n;
+		}
+		case Notification::SuiteFinished:
+		case Notification::TestStarted: {
+			return n.parent();
+		}
+		case Notification::TestFinished:
+		case Notification::Assertion: {
+			return n.parent().parent();
+		}
+		} //switch
+	} //getSuiteNotification()
+
+	Notification const* getTestNotification(Notification const& n) {
+		switch (n.type()) {
+		case Notification::TestStarted: {
+			return n;
+		}
+		case Notification::TestFinished:
+		case Notification::Assertion: {
+			return n.parent();
+		}
+		} //switch
+		return nullptr;
+	} //getTestNotification()
+
 	class Collector {
 	private:
 		typedef std::deque<std::unique_ptr<Notification const>> ContainerT;
@@ -218,7 +247,7 @@ namespace UT_NAMESPACE {
 				currentTestNotification_ = new TestNotification(test, n);
 				collector_.notify(std::move(std::unique_ptr<TestNotification const>(currentTestNotification_)));
 				(this->*(test.caller_))(test);
-				collector_.notify(std::move(std::unique_ptr<TestNotification const>(new TestNotification(test, n))));
+				collector_.notify(std::move(std::unique_ptr<TestNotification const>(new TestNotification(test, *currentTestNotification_))));
 			}
 			collector_.notify(std::move(std::unique_ptr<SuiteNotification const>(new SuiteNotification(suiteName_, Notification::SuiteFinished, n))));
 		} //Runner<>::run()
