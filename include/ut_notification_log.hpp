@@ -54,8 +54,9 @@ namespace UT_NAMESPACE {
 			std::deque<char> const& expected = n.getExpected();
 			switch (at) {
 			case Notification::Assert: {
+				copyz("\"", o);
 				std::copy(expected.begin(), expected.end(), o);
-				copyz(" is ", o);
+				copyz("\" is ", o);
 				copyz(n.result() == Notification::Succeeded ? "expectedly true" : "unexpectedly false", o);
 				break;
 			}
