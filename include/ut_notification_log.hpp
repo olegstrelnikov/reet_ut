@@ -19,7 +19,7 @@ namespace UT_NAMESPACE {
 	namespace log {
 
 		template<typename Out> void getSuite(Notification const& n, Out o) {
-			std::deque<char> const& suiteName = getSuiteNotification(n).getExpected();
+			std::deque<char> const& suiteName = getSuiteNotification(n)->getExpected();
 			std::copy(suiteName.begin(), suiteName.end(), o);
 		}
 

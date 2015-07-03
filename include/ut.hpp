@@ -130,20 +130,21 @@ namespace UT_NAMESPACE {
 		virtual bool expectedException_(std::deque<char> const**) const { return false; }
 	}; //class Notification
 
-	Notification const& getSuiteNotification(Notification const& n) {
+	Notification const* getSuiteNotification(Notification const& n) {
 		switch (n.type()) {
 		case Notification::SuiteStarted: {
-			return n;
+			return &n;
 		}
 		case Notification::SuiteFinished:
 		case Notification::TestStarted: {
-			return n.parent();
+			return &n.parent();
 		}
 		case Notification::TestFinished:
 		case Notification::Assertion: {
-			return n.parent().parent();
+			return &n.parent().parent();
 		}
 		} //switch
+		return nullptr;
 	} //getSuiteNotification()
 
 	Notification const* getTestNotification(Notification const& n) {
@@ -155,8 +156,10 @@ namespace UT_NAMESPACE {
 		case Notification::Assertion: {
 			return &n.parent();
 		}
+		default: {
+			return nullptr;
+		}
 		} //switch
-		return nullptr;
 	} //getTestNotification()
 
 	class Collector {
