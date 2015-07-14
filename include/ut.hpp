@@ -130,20 +130,21 @@ namespace UT_NAMESPACE {
 		virtual bool expectedException_(std::deque<char> const**) const { return false; }
 	}; //class Notification
 
-	Notification const& getSuiteNotification(Notification const& n) {
+	Notification const* getSuiteNotification(Notification const& n) {
 		switch (n.type()) {
 		case Notification::SuiteStarted: {
-			return n;
+			return &n;
 		}
 		case Notification::SuiteFinished:
 		case Notification::TestStarted: {
-			return n.parent();
+			return &n.parent();
 		}
 		case Notification::TestFinished:
 		case Notification::Assertion: {
-			return n.parent().parent();
+			return &n.parent().parent();
 		}
 		} //switch
+		return nullptr;
 	} //getSuiteNotification()
 
 	Notification const* getTestNotification(Notification const& n) {
@@ -156,7 +157,6 @@ namespace UT_NAMESPACE {
 			return &n.parent();
 		}
 		} //switch
-		return nullptr;
 	} //getTestNotification()
 
 	class Collector {
@@ -191,6 +191,12 @@ namespace UT_NAMESPACE {
 		std::size_t getAssertionsFailed() const {
 			return std::count_if(std::begin(n_), std::end(n_), [](typename ContainerT::value_type const& n) { return n->type() == Notification::Assertion && n->result() == Notification::Failed; });
 		}
+		ContainerT::const_iterator begin() const {
+			return n_.begin();
+		}
+		ContainerT::const_iterator end() const {
+			return n_.end();
+		}
 	protected:
 		virtual void notify_(std::unique_ptr<Notification const>&& n) {
 			n_.push_back(std::move(n));
@@ -224,7 +230,7 @@ namespace UT_NAMESPACE {
 	template<typename SuiteT, typename... EHVocabulary> class Runner : public RunnerBase {
 	public:
 		template<typename... Strings> Runner(Collector& collector, const char* suiteName, Strings... strings)
-			: currentTestNotification_(nullptr), suite_(), collector_(collector) {
+			: currentSuiteNotification_(nullptr), currentTestNotification_(nullptr), suite_(), collector_(collector) {
 			suite_.setContext(this);
 			copyz(suiteName, std::back_inserter(suiteName_));
 			TypeListManager::storeNamesTo(exceptions_, strings...);
@@ -241,15 +247,12 @@ namespace UT_NAMESPACE {
 		}
 
 		void run() {
-			SuiteNotification const& n = *new SuiteNotification(suiteName_, Notification::SuiteStarted);
-			collector_.notify(std::move(std::unique_ptr<SuiteNotification const>(&n)));
+			currentSuiteNotification_ = new SuiteNotification(suiteName_);
+			collector_.notify(std::move(std::unique_ptr<SuiteNotification const>(currentSuiteNotification_)));
 			for (TestRun& test : tests_) {
-				currentTestNotification_ = new TestNotification(test, n);
-				collector_.notify(std::move(std::unique_ptr<TestNotification const>(currentTestNotification_)));
 				(this->*(test.caller_))(test);
-				collector_.notify(std::move(std::unique_ptr<TestNotification const>(new TestNotification(test, *currentTestNotification_))));
 			}
-			collector_.notify(std::move(std::unique_ptr<SuiteNotification const>(new SuiteNotification(suiteName_, Notification::SuiteFinished, n))));
+			collector_.notify(std::move(std::unique_ptr<SuiteNotification const>(new SuiteNotification(suiteName_, *currentSuiteNotification_))));
 		} //Runner<>::run()
 
 	private:
@@ -388,42 +391,26 @@ namespace UT_NAMESPACE {
 		class TestRun {
 		public:
 			typedef void (Runner::*caller)(TestRun&);
-			TestRun(typename Test<SuiteT>::type test, const char* name, caller call, bool expecting = false)
-				: state_(NotStarted), test_(test), caller_(call), expecting_(expecting) {
+			TestRun(typename Test<SuiteT>::type test, const char* name, caller call)
+				: caller_(call), test_(test) {
 				copyz(name, std::back_inserter(name_));
 			};
 			TestRun(typename Test<SuiteT>::type test, const char* name, caller call, std::deque<char> const& expected)
-				: TestRun(test, name, call, true) {
+				: TestRun(test, name, call) {
 				std::copy(std::begin(expected), std::end(expected), back_inserter(expected_));
 			};
-			enum {NotStarted, Running, NothingThrownAsExpected, CaughtExpected, CaughtUnexpected, NotThrownButExpected} state_;
+			caller caller_;
 			typename Test<SuiteT>::type test_;
 			std::deque<char> name_;
-			caller caller_;
-			std::deque<char> thrownMessage_;
-			std::deque<char> thrownClass_;
-			bool const expecting_;
 			std::deque<char> expected_;
-			bool isFinished() const {
-				return NothingThrownAsExpected == state_ || CaughtExpected == state_;
-			}
-			bool thrown() const {
-				return CaughtExpected == state_ || CaughtUnexpected == state_;
-			}
-			Notification::Type notification() const {
-				return NotStarted == state_ ? Notification::TestStarted : Notification::TestFinished;
-			}
-			Notification::TypeResult result() const {
-				return isFinished() ? Notification::Succeeded : Notification::Failed;
-			}
 		}; //class Runner<>::TestRun
 
 		class SuiteNotification : public Notification {
 		public:
-			SuiteNotification(std::deque<char> const& name, Notification::Type type, Notification const& parent)
+			SuiteNotification(std::deque<char> const& name, SuiteNotification const& parent, Notification::Type type = Notification::SuiteFinished)
 				: suiteName_(name), type_(type), parent_(parent) {}
-			SuiteNotification(std::deque<char> const& name, Notification::Type type)
-				: SuiteNotification(name, type, *this) {}
+			SuiteNotification(std::deque<char> const& name)
+				: SuiteNotification(name, *this, Notification::SuiteStarted) {}
 		private:
 			std::deque<char> suiteName_;
 			Notification::Type type_;
@@ -436,31 +423,48 @@ namespace UT_NAMESPACE {
 
 		class TestNotification : public Notification {
 		public:
-			TestNotification(TestRun const& r, Notification const& parent)
-				: run_(r), type_(r.notification()), result_(r.result()), thrown_(r.thrown()), parent_(parent)  {}
+			TestNotification(SuiteNotification const& parent, std::deque<char> const& name)
+				: type_(TestStarted), result_(Succeeded), exception_(false), parent_(parent), name_(name) {
+			}
+			TestNotification(SuiteNotification const& parent, std::deque<char> const& name, std::deque<char> const& c)
+				: type_(TestStarted), result_(Succeeded), exception_(true), parent_(parent), exceptionClass_(c), name_(name) {
+			}
+			TestNotification(TestNotification const& parent, std::deque<char> const& name, TypeResult result)
+				: type_(TestFinished), result_(result), exception_(false), parent_(parent), name_(name) {
+			}
+			TestNotification(TestNotification const& parent, std::deque<char> const& name, TypeResult result, std::deque<char> const& c, std::deque<char> const& m)
+				: type_(TestFinished), result_(result), exception_(true), parent_(parent), thrownMessage_(m), exceptionClass_(c), name_(name) {
+			}
 		private:
-			TestRun const& run_;
 			Type const type_;
 			TypeResult const result_;
-			bool const thrown_;
+			bool const exception_;
 			Notification const& parent_;
+			std::deque<char> const thrownMessage_;
+			std::deque<char> const exceptionClass_;
+			std::deque<char> const name_;
+
 			virtual Notification const& getParent_() const override { return parent_; }
 			Type getType_() const override { return type_; }
 			virtual TypeResult getResult_() const override { return result_; }
 			bool thrownException_(std::deque<char> const** ppClass, std::deque<char> const** ppMessage) const override {
-				if (thrown_) {
-					*ppMessage = &run_.thrownMessage_;
-					*ppClass = &run_.thrownClass_;
+				bool const thrown = (TestFinished == type_ && exception_);
+				if (thrown) {
+					*ppMessage = &thrownMessage_;
+					*ppClass = &exceptionClass_;
 				}
-				return thrown_;
+				return thrown;
 			}
 			bool expectedException_(std::deque<char> const** ppExceptionClass) const override {
-				if (run_.expecting_) {
-					*ppExceptionClass = &run_.expected_;
+				if (TestStarted == type_) {
+					if (exception_) {
+						*ppExceptionClass = &exceptionClass_;
+					}
+					return exception_;
 				}
-				return run_.expecting_;
+				return parent_.expectedException(ppExceptionClass);
 			}
-			std::deque<char> const& getExpected_() const override { return run_.name_; }
+			std::deque<char> const& getExpected_() const override { return name_; }
 		}; //class Runner<>::TestNotification
 
 		class Assertion : public Notification {
@@ -484,34 +488,28 @@ namespace UT_NAMESPACE {
 		}; //class Runner<>::Assertion
 
 		void call_(TestRun& test) {
-			test.state_ = TestRun::Running;
+			currentTestNotification_ = new TestNotification(*currentSuiteNotification_, test.name_);
+			collector_.notify(std::move(std::unique_ptr<TestNotification const>(currentTestNotification_)));
 			std::deque<char> className, classValue;
 			ExceptionHandlerResult r = whatThrows(std::bind(test.test_, suite_), std::back_inserter(classValue), std::back_inserter(className));
 			if (NothingThrown == r) {
-				test.state_ = TestRun::NothingThrownAsExpected;
+				collector_.notify(std::move(std::unique_ptr<TestNotification const>(new TestNotification(*currentTestNotification_, test.name_, Notification::Succeeded))));
 			} else {
-				test.state_ = TestRun::CaughtUnexpected;
-				if (ThrownKnown == r) {
-					std::copy(className.begin(), className.end(), std::back_inserter(test.thrownClass_));
-					std::copy(classValue.begin(), classValue.end(), std::back_inserter(test.thrownMessage_));
-				}
+				collector_.notify(std::move(std::unique_ptr<TestNotification const>(new TestNotification(*currentTestNotification_, test.name_, Notification::Failed, className, classValue))));
 			}
 		} // Runner<>::call_()
 		template<typename Exception> void expect_(TestRun& test) {
-			test.state_ = TestRun::Running;
+			currentTestNotification_ = new TestNotification(*currentSuiteNotification_, test.name_, test.expected_);
+			collector_.notify(std::move(std::unique_ptr<TestNotification const>(currentTestNotification_)));
 			std::deque<char> className, classValue;
 			ExceptionHandlerResult r = whetherThrows<Exception>(std::bind(test.test_, suite_), std::back_inserter(classValue), std::back_inserter(className));
 			if (NothingThrown == r) {
-				test.state_ = TestRun::NotThrownButExpected;
+				collector_.notify(std::move(std::unique_ptr<TestNotification const>(new TestNotification(*currentTestNotification_, test.name_, Notification::Failed))));
 			} else {
 				if (ThrownKnownExpected == r || ThrownUnknownExpected == r) {
-					test.state_ = TestRun::CaughtExpected;
+					collector_.notify(std::move(std::unique_ptr<TestNotification const>(new TestNotification(*currentTestNotification_, test.name_, Notification::Succeeded, className, classValue))));
 				} else {
-					test.state_ = TestRun::CaughtUnexpected;
-				}
-				if (ThrownKnownExpected == r || ThrownKnown == r) {
-					std::copy(className.begin(), className.end(), std::back_inserter(test.thrownClass_));
-					std::copy(classValue.begin(), classValue.end(), std::back_inserter(test.thrownMessage_));
+					collector_.notify(std::move(std::unique_ptr<TestNotification const>(new TestNotification(*currentTestNotification_, test.name_, Notification::Failed, className, classValue))));
 				}
 			}
 		} // Runner<>::expect_()
@@ -520,6 +518,7 @@ namespace UT_NAMESPACE {
 			collector_.notify(std::move(std::unique_ptr<Notification const>(new Assertion(*currentTestNotification_, assertion ? Notification::Succeeded : Notification::Failed, file, function, line, expression))));
 		} //Runner<>::Assert_()
 
+		SuiteNotification const* currentSuiteNotification_;
 		TestNotification const* currentTestNotification_;
 		std::deque<TestRun> tests_;
 		SuiteT suite_;

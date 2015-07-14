@@ -43,8 +43,12 @@ private:
     public:
         static void serialize(std::ostringstream& oss, std::size_t const N, T const *t) {
             oss << "{ ";
-            for (std::size_t i = 0; (i < N) && (i && (oss << ", ", true), true); ++i) {
-                StreamSerializer::serialize(t[i], std::ostream_iterator<char>(oss));
+            if (N > 0) {
+                StreamSerializer::serialize(t[0], std::ostream_iterator<char>(oss));
+                for (std::size_t i = 1; i < N; ++i) {
+                	oss << ", ";
+                    StreamSerializer::serialize(t[i], std::ostream_iterator<char>(oss));
+                }
             }
             oss << " }";
         }

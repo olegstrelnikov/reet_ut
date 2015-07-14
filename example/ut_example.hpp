@@ -11,6 +11,7 @@
 #include <ut.hpp>
 #include <ut_streams.hpp>
 #include <ut_stream_handler.hpp>
+#include <ut_equal.hpp>
 
 class InitialSuite : public ut::Suite {
 public:
@@ -83,4 +84,41 @@ public:
 		ExceptionsSuite::run(collector);
 	}
 };
+
+class EqualExample {
+public:
+	static void run() {
+#define EQ(...) std::cout << "equal(" #__VA_ARGS__ ") = " << ut::equal(__VA_ARGS__) << "\n"
+#define DECLARE(...) std::cout << #__VA_ARGS__ "\n"; __VA_ARGS__
+	    EQ(1, 2);
+	    EQ(2, 2);
+	    //EQ(2, "hello"); //compiler error: 2.begin() not found
+	    //EQ("hello", 3); //compiler error: 3.begin() not found
+	    EQ(2, 2.2);
+	    EQ('d', 'e');
+	    EQ("hello", "hello");
+	    DECLARE(int a[] = {1, 2, 3};)
+	    DECLARE(int b[] = {1, 2, 3};)
+	    EQ(a, b);
+	    DECLARE(int c[] = {1, 2};)
+	    //EQ(a, c); //linker error
+	    EQ({1, 2, 3}, c);
+	    DECLARE(const char* x1 = "world";)
+	    EQ(x1, "world");
+	    DECLARE(const char x2[] = "world";)
+	    EQ(x2, "world");
+	    EQ(x2, x1);
+	    EQ({1, 2, 3}, {1, 2, 3});
+	    EQ({1, 2, 3}, {1, 2});
+	    EQ({1, 2, 3}, {1, 2, 4});
+	    EQ(a, {1, 2, 3});
+	    EQ({1, 2, 3}, a);
+	    EQ(a, {1, 2, 3, 4});
+
+
+	}
+#undef DECLARE
+#undef EQ
+}; //class EqualExample
+
 #endif /* EXAMPLE_UT_EXAMPLE_HPP_ */

@@ -11,6 +11,8 @@
 #include <iostream>
 
 #include "ut.hpp"
+#include "ut_notification_log.hpp"
+#include "ut_stream_serializer.hpp"
 
 #ifndef UT_NAMESPACE
 #define UT_NAMESPACE ut
@@ -86,8 +88,13 @@ namespace UT_NAMESPACE {
 			bool fails = getAssertionsFailed();
 			if (fails) {
 				os_ << "\nFailed assertions:\n";
-				for (std::size_t i = 0; i < getAssertionsFailed(); ++i) {
-					os_ << (i + 1) << ") " << "\n";
+				std::size_t i = 0;
+				for (auto& n : *this) {
+					if (n->type() == Notification::Assertion && n->result() == Notification::Failed) {
+						os_ << ++i << ") ";
+						log::getFull<StreamSerializer>(*n, std::ostream_iterator<char>(os_));
+						os_ << "\n";
+					}
 				}
 			}
 			return fails;
