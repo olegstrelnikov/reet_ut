@@ -149,11 +149,11 @@ namespace UT_NAMESPACE {
 	Notification const* getTestNotification(Notification const& n) {
 		switch (n.type()) {
 		case Notification::TestStarted: {
-			return n;
+			return &n;
 		}
 		case Notification::TestFinished:
 		case Notification::Assertion: {
-			return n.parent();
+			return &n.parent();
 		}
 		} //switch
 		return nullptr;
