@@ -88,34 +88,95 @@ public:
 class EqualExample {
 public:
 	static void run() {
-#define EQ(...) std::cout << "equal(" #__VA_ARGS__ ") = " << ut::equal(__VA_ARGS__) << "\n"
+#define EQ(expected, ...) {\
+	bool result = ut::equal(__VA_ARGS__);\
+	std::cout << "equal(" #__VA_ARGS__ ") = " << result << " - " <<\
+		(result == expected ? "ok" : (++errors, "fail")) << "\n";\
+}
 #define DECLARE(...) std::cout << #__VA_ARGS__ "\n"; __VA_ARGS__
-	    EQ(1, 2);
-	    EQ(2, 2);
+		std::size_t errors = 0;
+	    EQ(false, 1, 2);
+	    EQ(true, 2, 2);
 	    //EQ(2, "hello"); //compiler error: 2.begin() not found
 	    //EQ("hello", 3); //compiler error: 3.begin() not found
-	    EQ(2, 2.2);
-	    EQ('d', 'e');
-	    EQ("hello", "hello");
+	    EQ(false, 2, 2.2);
+	    EQ(false, 'd', 'e');
+	    EQ(true, "hello", "hello");
 	    DECLARE(int a[] = {1, 2, 3};)
 	    DECLARE(int b[] = {1, 2, 3};)
-	    EQ(a, b);
+	    EQ(true, a, b);
 	    DECLARE(int c[] = {1, 2};)
 	    //EQ(a, c); //linker error
-	    EQ({1, 2, 3}, c);
+	    EQ(false, {1, 2, 3}, c);
 	    DECLARE(const char* x1 = "world";)
-	    EQ(x1, "world");
+	    EQ(true, x1, "world");
 	    DECLARE(const char x2[] = "world";)
-	    EQ(x2, "world");
-	    EQ(x2, x1);
-	    EQ({1, 2, 3}, {1, 2, 3});
-	    EQ({1, 2, 3}, {1, 2});
-	    EQ({1, 2, 3}, {1, 2, 4});
-	    EQ(a, {1, 2, 3});
-	    EQ({1, 2, 3}, a);
-	    EQ(a, {1, 2, 3, 4});
+	    EQ(true, x2, "world");
+	    EQ(true, x2, x1);
+	    EQ(true, {1, 2, 3}, {1, 2, 3});
+	    EQ(false, {1, 2, 3}, {1, 2});
+	    EQ(false, {1, 2, 3}, {1, 2, 4});
+	    EQ(true, a, {1, 2, 3});
+	    EQ(true, {1, 2, 3}, a);
+	    EQ(false, a, {1, 2, 3, 4});
 
+	    //1
+	    //DECLARE(int aa0[0];);
+	    //DECLARE(double bb0[] = {};)
+	    //EQ(true, aa0, bb0);
+	    //EQ(true, bb0, aa0);
+	    DECLARE(int aa1[1] = {1};);
+	    DECLARE(double bb1[] = {1.0};)
+	    DECLARE(int aa2[] = {3, 4};);
+	    DECLARE(double bb2[] = {3.0, 4.0};)
+	    EQ(true, aa1, bb1);
+	    EQ(true, bb1, aa1);
+	    EQ(true, aa2, bb2);
+	    EQ(true, bb2, aa2);
+	    //EQ(true, aa1, aa2); //compilation error
+	    DECLARE(char const* cc2[] = {"3", "4"}); cc2[0] = cc2[1]; //suppress "unused" warning message
+	    //EQ(false, aa2, cc2); //comilation error
+	    DECLARE(double dd1[] = {10.0};)
+	    DECLARE(double dd2[] = {11.0, 12.0};)
+	    EQ(false, aa1, dd1);
+	    EQ(false, dd1, aa1);
+	    EQ(false, aa2, dd2);
+	    EQ(false, dd2, aa2);
+	    DECLARE(int xx[2][3] = {{1, 2, 3}, {4, 5, 6}});
+	    DECLARE(int yy[2][3] = {{1, 2, 3}, {4, 5, 6}});
+	    DECLARE(int zz[2][3] = {{1, 2, 3}, {4, 5, 7}});
+	    EQ(true, xx, yy);
+	    EQ(false, xx, zz);
 
+	    //2
+
+	    //3
+
+	    //4
+
+	    //5
+
+	    //6
+
+	    //7
+
+	    //8
+
+	    //9
+
+	    //10
+
+	    //11
+
+	    //12
+
+	    //13
+
+	    //14
+
+	    //15
+
+	    std::cout << errors << " failures";
 	}
 #undef DECLARE
 #undef EQ
