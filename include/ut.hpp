@@ -143,8 +143,10 @@ namespace UT_NAMESPACE {
 		case Notification::Assertion: {
 			return &n.parent().parent();
 		}
+		default: {
+			return nullptr;
+		}
 		} //switch
-		return nullptr;
 	} //getSuiteNotification()
 
 	Notification const* getTestNotification(Notification const& n) {
@@ -155,6 +157,9 @@ namespace UT_NAMESPACE {
 		case Notification::TestFinished:
 		case Notification::Assertion: {
 			return &n.parent();
+		}
+		default: {
+			return nullptr;
 		}
 		} //switch
 	} //getTestNotification()
