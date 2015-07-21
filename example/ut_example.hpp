@@ -120,7 +120,7 @@ public:
 	    EQ(true, {1, 2, 3}, a);
 	    EQ(false, a, {1, 2, 3, 4});
 
-	    //1
+	    //1 - array-array
 	    //DECLARE(int aa0[0];);
 	    //DECLARE(double bb0[] = {};)
 	    //EQ(true, aa0, bb0);
@@ -152,7 +152,7 @@ public:
 
 	    //3
 
-	    //4
+	    //4 - skipped
 
 	    //5
 
@@ -162,7 +162,7 @@ public:
 
 	    //8
 
-	    //9
+	    //9 - skipped
 
 	    //10
 
@@ -170,11 +170,23 @@ public:
 
 	    //12
 
-	    //13
+	    //13 - skipped
 
 	    //14
 
 	    //15
+
+	    //16 - skipped
+
+	    //17 - skipped
+
+	    //18 - skipped
+
+	    //19
+
+	    //20
+
+	    //21
 
 	    std::cout << errors << " failures";
 	}
