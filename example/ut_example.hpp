@@ -134,7 +134,8 @@ public:
 	    EQ(true, aa2, bb2);
 	    EQ(true, bb2, aa2);
 	    //EQ(true, aa1, aa2); //compilation error
-	    DECLARE(char const* cc2[] = {"3", "4"}); cc2[0] = cc2[1]; //suppress "unused" warning message
+	    DECLARE(char const* cc2[] = {"3", "4"});
+	    EQ(true, cc2, cc2);
 	    //EQ(false, aa2, cc2); //comilation error
 	    DECLARE(double dd1[] = {10.0};)
 	    DECLARE(double dd2[] = {11.0, 12.0};)
@@ -144,9 +145,41 @@ public:
 	    EQ(false, dd2, aa2);
 	    DECLARE(int xx[2][3] = {{1, 2, 3}, {4, 5, 6}});
 	    DECLARE(int yy[2][3] = {{1, 2, 3}, {4, 5, 6}});
-	    DECLARE(int zz[2][3] = {{1, 2, 3}, {4, 5, 7}});
 	    EQ(true, xx, yy);
+	    EQ(true, yy, xx);
+	    DECLARE(int zz[2][3] = {{1, 2, 3}, {4, 5, 7}});
 	    EQ(false, xx, zz);
+	    EQ(false, zz, xx);
+	    EQ(false, yy, zz);
+	    EQ(false, zz, yy);
+		DECLARE(int qq[][2][3][4] =
+		{
+				{{{15, 16, 17, 18}, {19, 20, 21, 22}, {23, 24, 25, 26}}, {{27, 28, 29, 30}, {31, 32, 33, 34}, {35, 36, 37, 38}}},
+				{{{39, 40, 41, 42}, {43, 44, 45, 46}, {47, 48, 49, 50}}, {{51, 52, 53, 54}, {55, 56, 57, 58}, {59, 60, 61, 62}}},
+		});
+		DECLARE(int ww[][2][3][4] =
+		{
+				{{{15, 16, 17, 18}, {19, 20, 21, 22}, {23, 24, 25, 26}}, {{27, 28, 29, 30}, {31, 32, 33, 34}, {35, 36, 37, 38}}},
+				{{{39, 40, 41, 42}, {43, 44, 45, 46}, {47, 48, 49, 50}}, {{51, 52, 53, 54}, {55, 56, 57, 58}, {59, 60, 61, 62}}},
+		});
+	    EQ(true, qq, ww);
+	    EQ(true, ww, qq);
+		DECLARE(int vv[][2][3][4] =
+		{
+				{{{15, 16, 17, 18}, {19, 20, 21, 22}, {23, 24, 25, 26}}, {{27, 28, 29, 30}, {31, 32, 33, 34}, {35, 36, 37, 38}}},
+				{{{39, 40, 41, 42}, {43, 44, 45, 46}, {47, 48, 49, 50}}, {{51, 52, 53, 54}, {55, 56, 57, 58}, {59, 60, 61, 63}}},
+		});
+	    EQ(false, qq, vv);
+	    EQ(false, vv, qq);
+	    EQ(false, ww, vv);
+	    EQ(false, vv, ww);
+	    EQ(true, xx, xx);
+	    EQ(true, yy, yy);
+	    EQ(true, zz, zz);
+	    EQ(true, qq, qq);
+	    EQ(true, ww, ww);
+	    EQ(true, vv, vv);
+	    //EQ(false, xx, ww); //compilation error
 
 	    //2
 
