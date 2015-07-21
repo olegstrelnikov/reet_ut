@@ -170,9 +170,24 @@ template<typename T1, typename T2, std::size_t N, std::size_t M> bool equal(T1 c
 template<typename T1, typename T2, std::size_t N1> bool equal(T1 const (&t1)[N1], std::initializer_list<T2> t2) {
     return (N1 == t2.size()) && std::equal<T1 const*, typename std::initializer_list<T2>::const_iterator, typename EqualFunction<T1, T2>::Type>(t1, t1 + N1, t2.begin(), equal<T1, T2>);
 }
+template<typename T1, typename T2, std::size_t N1, std::size_t M1> bool equal(T1 const (&t1)[N1][M1], std::initializer_list<T2> t2) {
+	if (N1 != t2.size()) {
+		return false;
+	}
+	auto it = t2.begin();
+	for (std::size_t i = 0; i < N1; ++i, ++it) { //todo: is it possible to replace the loop with std::equal() ?
+		if (!equal(t1[i], *it)) {
+			return false;
+		}
+	}
+    return true;
+}
 
 // 2' - initializer_list-array
 template<typename T1, typename T2, std::size_t N2> bool equal(std::initializer_list<T1> t1, T2 const (&t2)[N2]) {
+    return equal(t2, t1);
+}
+template<typename T1, typename T2, std::size_t N2, std::size_t M2> bool equal(std::initializer_list<T1> t1, T2 const (&t2)[N2][M2]) {
     return equal(t2, t1);
 }
 

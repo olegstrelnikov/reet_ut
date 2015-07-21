@@ -182,6 +182,18 @@ public:
 	    //EQ(false, xx, ww); //compilation error
 
 	    //2
+	    EQ(true, aa1, {1});
+	    EQ(true, {1}, aa1);
+	    EQ(false, aa1, {2});
+	    EQ(false, {2}, aa1);
+	    EQ(false, aa1, {1, 2});
+	    EQ(false, {1, 2}, aa1);
+	    //EQ(false, aa1, {{1}});
+	    //EQ(false, {{1}}, aa1);
+	    DECLARE(int aaa[][1] = {{1}});
+	    EQ(true, aaa, {{1}});
+	    EQ(true, {{1}}, aaa);
+
 
 	    //3
 
